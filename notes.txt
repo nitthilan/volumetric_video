@@ -1,0 +1,14 @@
+
+alias run_rsync='rsync -azP -e "ssh -i ~/.ssh/id_ed25519" --progress --stats --exclude ".*/" --exclude ".*" --exclude "tmp/" /Users/kannappanjayakodinitthilan/Documents/old_laptop/virtual_studio/volumetric_video njayakodi_dg@dg20a.eecs.wsu.edu:/local/data/nitthilan/source_code/'
+
+
+alias run_rsync=' sshpass -p "********" rsync -azP --progress --stats --exclude ".*/" --exclude ".*" --exclude "tmp/" /Users/kannappanjayakodinitthilan/Documents/old_laptop/virtual_studio/volumetric_video njayakodi_dg@dg20b.eecs.wsu.edu:/local/data/nitthilan/source_code/'
+
+run_rsync; fswatch -o /Users/kannappanjayakodinitthilan/Documents/old_laptop/virtual_studio/volumetric_video  | while read f; do run_rsync; done
+
+
+podman run -it --rm --ipc=host -v /local/data/nitthilan/:/nitthilan/ --name nitt_pytorch nvcr.io/nvidia/pytorch:20.09-py3 
+
+
+podman exec -it nitt_pytorch /bin/bash
+

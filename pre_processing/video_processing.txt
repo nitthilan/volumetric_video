@@ -1,0 +1,8 @@
+extracting frames:
+
+ffmpeg -i video.avi -vf "scale=320:240,fps=25" frames/c01_%04d.jpeg
+
+
+ffmpeg -i Playground.mp4 -vf "fps=1" images/Playground/%05d.png
+
+

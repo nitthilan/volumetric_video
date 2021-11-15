@@ -1,0 +1,7 @@
+
+
+
+python eval_nerf.py --config ./config/lego.yml --checkpoint ./logs/lego-lowres3/checkpoint30000.ckpt --savedir cache/rendered/lego-lowres3
+
+
+python cache_dataset.py --datapath /nitthilan/data/NERF/nerf_synthetic/chair/ --halfres False --savedir ./cache/chaircache/chairfull --num-random-rays 8192 --num-variations 50

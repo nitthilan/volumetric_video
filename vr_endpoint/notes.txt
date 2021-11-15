@@ -1,0 +1,15 @@
+
+
+
+Unity App: 
+3D Stereo VR Video in Unity3D 2017 - https://www.youtube.com/watch?v=8igGlMhwyx0
+
+https://www.youtube.com/playlist?list=PL4mtHuMZdZjxFVJShgmXRqvABRa-AJmvH - VR basics playlist
+
+Tasks:
+- Generate inference of going around the playground with camera parameters SBS or TB video or image series
+- Interface to get images from the server
+- USe keyboard inputs as interface to generate the VR app and test it
+- What is XRInput simulator and can it be used for testing?
+- Create an app and drop it in VR app and check the depth perception
+- push to git hub and add in site

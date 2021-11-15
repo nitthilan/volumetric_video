@@ -1,0 +1,96 @@
+
+xvfb-run -s "+extension GLX -screen 0 1024x768x24" colmap feature_extractor --database_path ./colmap/Playground/feature.db \
+                --image_path ./images/Playground \
+                --ImageReader.single_camera 1 \
+                --ImageReader.camera_model SIMPLE_RADIAL \
+                --SiftExtraction.max_image_size 5000  \
+                --SiftExtraction.estimate_affine_shape 0 \
+                --SiftExtraction.domain_size_pooling 1 \
+                --SiftExtraction.use_gpu 1 \
+                --SiftExtraction.max_num_features 16384 
+
+xvfb-run -s "+extension GLX -screen 0 1024x768x24" colmap exhaustive_matcher --database_path ./colmap/Playground/feature.db \
+                 --SiftMatching.guided_matching 1 \
+                 --SiftMatching.use_gpu 1 \
+                 --SiftMatching.max_num_matches 65536 \
+                 --SiftMatching.max_error 3 
+
+
+colmap mapper \
+    --database_path ./Playground/colmap/feature.db \
+    --image_path ./Playground/images/ \
+    --Mapper.tri_min_angle 3.0 \
+    --Mapper.filter_min_tri_angle 3.0 \
+    --Mapper.num_threads 10 \
+    --output_path ./Playground/colmap
+
+
+colmap mapper \
+    --database_path ./output/playground/feature.db \
+    --image_path /nitthilan/data/nerfplusplus/tanks_and_temples/tat_intermediate_Playground/train/rgb/ \
+    --Mapper.tri_min_angle 3.0 \
+    --Mapper.filter_min_tri_angle 3.0 \
+    --Mapper.ba_global_use_pba 0 \
+    --Mapper.ba_global_pba_gpu_index 0 \
+    --Mapper.num_threads 32 \
+    --Mapper.multiple_models 0 \
+    --output_path ./output/playground/export/
+
+
+colmap image_undistorter \
+            --image_path ./images \
+            --input_path ./colmap/export/0/ \
+            --output_path ./colmap/export/ \
+            --output_type COLMAP \
+            --max_image_size 2000
+
+
+CPU runtimes:
+exhaustive_matcher - took 338 minutes
+mapper - Elapsed time: 26.718 [minutes]
+
+GPU runtimes
+exhaustive_matcher - took 2 minutes
+mapper - Elapsed time: 17.017 [minutes]
+
+use SIMPLE_PINHOLE
+
+
+Installing from source:
+- Installing from source: https://colmap.github.io/install.html
+- Installing intel mkl : https://github.com/eddelbuettel/mkl4deb
+- shared libraries not found: [https://stackoverflow.com/questions/27923890/error-while-loading-shared-libraries-libiomp5-so-cannot-open-shared-object-fil]
+    - source /opt/intel/bin/compilervars.sh intel64
+
+https://colmap.github.io/cli.html - the whole process of creating a mesh
+camera parameters: https://github.com/colmap/colmap/issues/812
+
+Try gradual pose refinement:
+- Experiment with the number of images and image size and find which has impact
+    - Use gradual addition of new images to do fast registration
+        - https://colmap.github.io/faq.html#reconstruct-sparse-dense-model-from-known-camera-poses - 
+    - hierarchical mapper colmap ?? not sure how this is done
+    - reduce camera parameter like focal point estimation
+- How to reduce the number of features used for BA
+- Use camera plot to understand the path of the camera
+- Mapper extract_colors ??
+
+- Choose the right images to improve the reconstructed image?
+    - Compare the camera parameters of raw and the actual dataset used?
+    - Read the nerfplusplus to understand any cleaning done?
+
+
+
+Possible future ideas:
+- https://github.com/weixk2015/DeepSFM - DeepSFM: Structure From Motion Via Deep Bundle Adjustment - https://www.ecva.net/papers/eccv_2020/papers_ECCV/papers/123460222.pdf
+- https://github.com/zju3dv
+- https://arxiv.org/pdf/2104.00681.pdf - NeuralRecon: Real-Time Coherent 3D Reconstruction from Monocular Video - https://github.com/zju3dv/NeuralRecon
+- https://github.com/zju3dv/LoFTR - LoFTR: Detector-Free Local Feature Matching with Transformers
+
+- colmap https://colmap.github.io/cameras.html - Can you optimize it by using one camera parameters, reducing image dimension, reducing number of images and adding new images later, Since it is a video images can it be used by interpolating from neigboring images or initilizing new images with neighboring images values to converge faster
+- simple camera model: https://colmap.github.io/cameras.html
+
+Structure-from-Motion Revisited - https://demuc.de/papers/schoenberger2016sfm.pdf - Perspective-n-Point (PnP) problem - file:///Users/kannappanjayakodinitthilan/Downloads/nissen-GSA-sept-2016-SfM-lecture1-Intro.pdf - A good intro to SfM
+
+https://en.wikipedia.org/wiki/Epipolar_geometry - Epipolar geometry - https://web.stanford.edu/class/cs231a/course_notes/03-epipolar-geometry.pdf - Inspect camera parameters: Inspecting epipolar lines: https://gitlab.inria.fr/lheidelb/nerfplusplus
+
