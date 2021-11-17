@@ -1,0 +1,2 @@
+http://www.kwon3d.com/theory/transform/rot.html - Rotation matrix
+http://www.cse.psu.edu/~rtc12/CSE486/lecture12.pdf - Camera projection matrix - Intrinsic and Extrinsic parameters

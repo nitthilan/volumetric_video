@@ -24,20 +24,28 @@ logger = logging.getLogger(__package__)
 def render_ods_image(is_left_eye, IPD, H, W):
     
     u, v = np.meshgrid(np.arange(W), np.arange(H))
-    u = (u.reshape(-1).astype(dtype=np.float32) + 0.5) / W   # add half pixel
-    v = (v.reshape(-1).astype(dtype=np.float32) + 0.5) / H
+
+    u = u.reshape(-1).astype(dtype=np.float32)
+    v = v.reshape(-1).astype(dtype=np.float32)
+    # print("Input dimensions ", v.shape, (v >= (H/2)).shape)
+    v[(v >= (H/2))] -= (H/2)
+
+    # print("Values less than zero ", np.sum(np.abs(v[v<=0])))
+    u = (u + 0.5) / W   # add half pixel
+    v = (v + 0.5) * 2 / H
     # ODS image is equirectangular (spherical) with U ranging from (-180, 180) degree 
     # and V ranging from (-90, 90) degree
     pixels = np.stack((u, v, np.ones_like(u)), axis=0)  # (3, H*W)
     theta = 2*np.pi*u - np.pi
-    phi = np.pi / 2 - v * np.pi
+    # phi = np.pi / 2 - v * np.pi
+    phi = v * np.pi - (np.pi / 2)
     if(is_left_eye):
         scale = -1*IPD/2
     else:
         scale = IPD/2
     
     ray_origin = np.vstack([np.cos(theta), np.zeros(theta.shape[0]), \
-        np.sin(theta)]).transpose() * scale;
+        np.sin(theta)]).transpose() * scale
     # Ray directions are tangent to the circle.
     ray_direction = np.vstack([np.sin(theta)*np.cos(phi), np.sin(phi), 
         -1*np.cos(theta)*np.cos(phi)]).transpose()
@@ -56,7 +64,7 @@ def render_ods_image(is_left_eye, IPD, H, W):
 
 
 class RaySamplerSingleImage(object):
-    def __init__(self, H = 1024, W = 2048, IPD = 0.6):
+    def __init__(self, H = 2048, W = 2048, IPD = 0.06):
         super().__init__()
         self.W_orig = W
         self.H_orig = H
@@ -66,12 +74,23 @@ class RaySamplerSingleImage(object):
         self.W = self.W_orig 
         self.H = self.H_orig 
 
-        self.ray_sampler = render_ods_image(is_left_eye, IPD, H, W)
+        self.ray_samp = render_ods_image(True, IPD, H, W)
+
+    # def set_eye_pos(self, is_left):
+    #     self.is_left = is_left
+
+    def set_camera_pos(self, cam_offset):
+        self.ray_frm_cam = OrderedDict([
+            ('ray_o', torch.clone(self.ray_samp['ray_o']) + torch.FloatTensor(cam_offset)),
+            # ('ray_d', torch.clone(self.ray_samp['ray_d']) + torch.FloatTensor(cam_offset)),
+            ('ray_d', self.ray_samp['ray_d']),
+            ('min_depth', self.ray_samp['min_depth'])
+            ])
+        return
 
     def get_all(self):
-        return self.ray_sampler
-
-
+        return self.ray_frm_cam
+        
 
 
 def ddp_test_nerf(rank, args):
@@ -99,37 +118,44 @@ def ddp_test_nerf(rank, args):
         os.makedirs(out_dir, exist_ok=True)
 
 
-    fname = "ods_output.png"
     ods_ray_sampler = RaySamplerSingleImage()
-    time0 = time.time()
-    ret = render_single_image(rank, args.world_size, models, ods_ray_sampler, args.chunk_size)
-    dt = time.time() - time0
-    if rank == 0:    # only main process should do this
-        logger.info('Rendered {} in {} seconds'.format(fname, dt))
+    
+    NUM_FRMS = 10
+    for i in range(NUM_FRMS):
+        fname = "ods_output_" + str(i) + ".png"
+        theta = 2.0*np.pi*i/NUM_FRMS
+        offset = [0.3*np.cos(theta), 0.03, 0.3*np.sin(theta)]
+        ods_ray_sampler.set_camera_pos(offset)
 
-        # only save last level
-        im = ret[-1]['rgb'].numpy()
+        time0 = time.time()
+        ret = render_single_image(rank, args.world_size, models, ods_ray_sampler, args.chunk_size)
+        dt = time.time() - time0
+        if rank == 0:    # only main process should do this
+            logger.info('Rendered {} in {} seconds'.format(fname, dt))
 
-        im = to8b(im)
-        imageio.imwrite(os.path.join(out_dir, fname), im)
+            # only save last level
+            im = ret[-1]['rgb'].numpy()
 
-        im = ret[-1]['fg_rgb'].numpy()
-        im = to8b(im)
-        imageio.imwrite(os.path.join(out_dir, 'fg_' + fname), im)
+            im = to8b(im)
+            imageio.imwrite(os.path.join(out_dir, fname), im)
 
-        im = ret[-1]['bg_rgb'].numpy()
-        im = to8b(im)
-        imageio.imwrite(os.path.join(out_dir, 'bg_' + fname), im)
+            im = ret[-1]['fg_rgb'].numpy()
+            im = to8b(im)
+            imageio.imwrite(os.path.join(out_dir, 'fg_' + fname), im)
 
-        im = ret[-1]['fg_depth'].numpy()
-        im = colorize_np(im, cmap_name='jet', append_cbar=True)
-        im = to8b(im)
-        imageio.imwrite(os.path.join(out_dir, 'fg_depth_' + fname), im)
+            im = ret[-1]['bg_rgb'].numpy()
+            im = to8b(im)
+            imageio.imwrite(os.path.join(out_dir, 'bg_' + fname), im)
 
-        im = ret[-1]['bg_depth'].numpy()
-        im = colorize_np(im, cmap_name='jet', append_cbar=True)
-        im = to8b(im)
-        imageio.imwrite(os.path.join(out_dir, 'bg_depth_' + fname), im)
+            im = ret[-1]['fg_depth'].numpy()
+            im = colorize_np(im, cmap_name='jet', append_cbar=True)
+            im = to8b(im)
+            imageio.imwrite(os.path.join(out_dir, 'fg_depth_' + fname), im)
+
+            im = ret[-1]['bg_depth'].numpy()
+            im = colorize_np(im, cmap_name='jet', append_cbar=True)
+            im = to8b(im)
+            imageio.imwrite(os.path.join(out_dir, 'bg_depth_' + fname), im)
 
     torch.cuda.empty_cache()
 

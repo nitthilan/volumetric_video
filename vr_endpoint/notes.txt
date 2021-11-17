@@ -12,4 +12,7 @@ Tasks:
 - USe keyboard inputs as interface to generate the VR app and test it
 - What is XRInput simulator and can it be used for testing?
 - Create an app and drop it in VR app and check the depth perception
-- push to git hub and add in site
+
+- Remote access: https://docs.unity3d.com/ScriptReference/Networking.UnityWebRequest.html, https://docs.unity3d.com/Packages/com.unity.addressables@1.19/manual/AddressableAssetsGettingStarted.html, https://docs.unity3d.com/Manual/AssetBundlesIntro.html
+- Load resources: https://docs.unity3d.com/ScriptReference/Resources.Load.html
+- CoRoutines: https://docs.unity3d.com/Manual/Coroutines.html

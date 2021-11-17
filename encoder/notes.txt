@@ -5,3 +5,6 @@ python eval_nerf.py --config ./config/lego.yml --checkpoint ./logs/lego-lowres3/
 
 
 python cache_dataset.py --datapath /nitthilan/data/NERF/nerf_synthetic/chair/ --halfres False --savedir ./cache/chaircache/chairfull --num-random-rays 8192 --num-variations 50
+
+
+Left right maps to top and bottom respectively: https://techgearauthority.com/what-is-over-under-top-and-bottom-3d/

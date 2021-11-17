@@ -94,3 +94,7 @@ Structure-from-Motion Revisited - https://demuc.de/papers/schoenberger2016sfm.pd
 
 https://en.wikipedia.org/wiki/Epipolar_geometry - Epipolar geometry - https://web.stanford.edu/class/cs231a/course_notes/03-epipolar-geometry.pdf - Inspect camera parameters: Inspecting epipolar lines: https://gitlab.inria.fr/lheidelb/nerfplusplus
 
+
+python pre_processing/colmap/extract_sfm.py  /nitthilan/data/nerfplusplus/tanks_and_temples_video/Playground/colmap/
+
+python pre_processing/colmap/gen_data_nerfplusplus.py 
