@@ -1,0 +1,18 @@
+task: 'if_nerf'
+gpus: [0]
+
+parent_cfg: 'configs/nerf/nerf_313.yaml'
+
+human: 377
+
+train_dataset:
+    data_root: 'data/zju_mocap/CoreView_377'
+    human: 'CoreView_377'
+    ann_file: 'data/zju_mocap/CoreView_377/annots.npy'
+    split: 'train'
+
+test_dataset:
+    data_root: 'data/zju_mocap/CoreView_377'
+    human: 'CoreView_377'
+    ann_file: 'data/zju_mocap/CoreView_377/annots.npy'
+    split: 'test'

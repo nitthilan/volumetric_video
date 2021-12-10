@@ -1,0 +1,28 @@
+task: 'if_nerf'
+gpus: [0]
+
+parent_cfg: 'configs/zju_mocap_exp/latent_xyzc_313.yaml'
+
+train_dataset:
+    data_root: 'data/h36m/S11/Greeting'
+    human: 'S11'
+    ann_file: 'data/h36m/S11/Greeting/annots.npy'
+    split: 'train'
+
+test_dataset:
+    data_root: 'data/h36m/S11/Greeting'
+    human: 'S11'
+    ann_file: 'data/h36m/S11/Greeting/annots.npy'
+    split: 'test'
+
+# data options
+H: 1002
+W: 1000
+ratio: 1.
+training_view: [0, 1, 2, 3]
+begin_ith_frame: 1200
+num_train_frame: 400
+smpl: 'smpl'
+vertices: 'vertices'
+params: 'params'
+big_box: True

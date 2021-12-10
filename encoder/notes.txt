@@ -8,3 +8,7 @@ python cache_dataset.py --datapath /nitthilan/data/NERF/nerf_synthetic/chair/ --
 
 
 Left right maps to top and bottom respectively: https://techgearauthority.com/what-is-over-under-top-and-bottom-3d/
+
+python train_net.py --cfg_file ./configs/iphone_pro/iphone_pro_water_pump.yaml exp_name water_pump resume False
+
+python -m torch.distributed.launch --nproc_per_node=4 train_net.py --cfg_file ./configs/iphone_pro/iphone_pro_water_pump.yaml exp_name water_pump resume False gpus "0, 1, 2, 3" distributed True

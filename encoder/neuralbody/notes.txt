@@ -1,0 +1,25 @@
+
+Understanding code base:
+Renderer:
+volume_renderer - this is plain nerf renderer
+if_clight_renderer - training of neural bodies uses this. Looks like used for neural_volumes
+
+if_clight_renderer_msk - for single camera pose for novel view
+
+if_clight_renderer_mmsk - multi-view rendering
+
+mesh_renderer - Rendering mesh using marching cubes
+
+
+trainer.py - Core training loop. It embeds the network wrapper based on the input configuration file
+	- nerf.py - volume renderer is used
+	- if_nerf_clight.py - if_clight_renderer is used
+
+Networks:
+	- nerf.py - Used for volume rendering instead of voxel rendering
+	- latent_xyzc.py - Voxel based predictor
+	- nerf_mesh - not used in this code base
+	- embedder - The embedding module mapping xyz to freq components 
+
+All tpose looks not useful as of now. Not used.
+Dataset:

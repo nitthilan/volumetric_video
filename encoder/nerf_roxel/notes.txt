@@ -1,12 +1,9 @@
 
-https://arxiv.org/pdf/2004.00452.pdf - PiFUHD
-https://arxiv.org/pdf/2103.13744.pdf - KiloNeRF
-https://arxiv.org/pdf/2103.10380.pdf - fastNeRF
-https://arxiv.org/pdf/2102.13090.pdf - IBRNet: Learning Multi-View Image-Based Rendering - Read about this
-https://arxiv.org/pdf/2103.15595.pdf - MVSNeRF: Fast Generalizable Radiance Field Reconstruction from Multi-View Stereo - https://github.com/apchenstu/mvsnerf/blob/main/renderer.ipynb - this has resulat about all the implementation
-https://alexyu.net/plenoctrees/
-https://nex-mpi.github.io/ - 
-https://github.com/facebookresearch/NSVF - 
+
+CUDA_VISIBLE_DEVICES=6,7,8,9 python training_loop.py --config ./tat_training_truck.txt
 
 
-https://www.cs.cornell.edu/~zl548/NSFF/ - Neural Scene Flow Fields for Space-Time View Synthesis of Dynamic Scenes - Storing the video in neural network
+from fairnr.clib import (
+    aabb_ray_intersect, triangle_ray_intersect, svo_ray_intersect,
+    uniform_ray_sampling, inverse_cdf_sampling
+)

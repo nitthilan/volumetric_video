@@ -14,5 +14,8 @@ Tasks:
 - Create an app and drop it in VR app and check the depth perception
 
 - Remote access: https://docs.unity3d.com/ScriptReference/Networking.UnityWebRequest.html, https://docs.unity3d.com/Packages/com.unity.addressables@1.19/manual/AddressableAssetsGettingStarted.html, https://docs.unity3d.com/Manual/AssetBundlesIntro.html
-- Load resources: https://docs.unity3d.com/ScriptReference/Resources.Load.html
+- Load resources: https://docs.unity3d.com/ScriptReference/Resources.Load.html, https://docs.unity3d.com/Manual/BestPracticeUnderstandingPerformanceInUnity6.html 
+- https://learn.unity.com/tutorial/assets-resources-and-assetbundles#
 - CoRoutines: https://docs.unity3d.com/Manual/Coroutines.html
+
+- https://www.youtube.com/playlist?list=PL4mtHuMZdZjxFVJShgmXRqvABRa-AJmvH - Unity VR Basics

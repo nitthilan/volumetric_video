@@ -85,12 +85,12 @@ Possible future ideas:
 - https://github.com/weixk2015/DeepSFM - DeepSFM: Structure From Motion Via Deep Bundle Adjustment - https://www.ecva.net/papers/eccv_2020/papers_ECCV/papers/123460222.pdf
 - https://github.com/zju3dv
 - https://arxiv.org/pdf/2104.00681.pdf - NeuralRecon: Real-Time Coherent 3D Reconstruction from Monocular Video - https://github.com/zju3dv/NeuralRecon
-- https://github.com/zju3dv/LoFTR - LoFTR: Detector-Free Local Feature Matching with Transformers
 
 - colmap https://colmap.github.io/cameras.html - Can you optimize it by using one camera parameters, reducing image dimension, reducing number of images and adding new images later, Since it is a video images can it be used by interpolating from neigboring images or initilizing new images with neighboring images values to converge faster
 - simple camera model: https://colmap.github.io/cameras.html
 
 Structure-from-Motion Revisited - https://demuc.de/papers/schoenberger2016sfm.pdf - Perspective-n-Point (PnP) problem - file:///Users/kannappanjayakodinitthilan/Downloads/nissen-GSA-sept-2016-SfM-lecture1-Intro.pdf - A good intro to SfM
+https://arxiv.org/pdf/2104.06405.pdf - BARF - 
 
 https://en.wikipedia.org/wiki/Epipolar_geometry - Epipolar geometry - https://web.stanford.edu/class/cs231a/course_notes/03-epipolar-geometry.pdf - Inspect camera parameters: Inspecting epipolar lines: https://gitlab.inria.fr/lheidelb/nerfplusplus
 
