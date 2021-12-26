@@ -88,7 +88,7 @@ def write_depth_seg_mask(flags, width, height):
     for filename in files:
         if '.npy' not in filename:
             continue
-        print(f"Writing depth frame {filename}", end='\r')
+        # print(f"Writing depth frame {filename}", end='\r')
         number, _ = filename.split('.')
         depth = np.load(os.path.join(depth_dir_in, filename))
         confidence = cv2.imread(os.path.join(confidence_dir, number + '.png'))[:, :, 0]
@@ -97,10 +97,15 @@ def write_depth_seg_mask(flags, width, height):
 
         depth[confidence < flags.confidence] = 0
 
+        hist, bin_edges = np.histogram(depth)
+        # print("Min and max ", filename, np.mean(depth))
+        # print(hist, bin_edges)
+
         depth = resize_depth(depth, width, height)
         depth[depth >= 4000] = 0
+
         depth[depth != 0] = 1
-        print("depth image ", depth.shape, width, height, end='\r')
+        # print("depth image ", depth.shape, width, height, end='\r')
 
         # cv2.imwrite(os.path.join(depth_out_dir, number + '.png'), depth)
         # depth.dtype='uint8'

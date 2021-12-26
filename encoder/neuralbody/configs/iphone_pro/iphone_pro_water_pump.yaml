@@ -62,7 +62,7 @@ xyz_res: 10
 view_res: 4
 raw_noise_std: 0
 
-N_samples: 8 # 64
+N_samples: 6 # 64
 N_importance: 128
 N_rand: 1024
 
@@ -72,13 +72,13 @@ white_bkgd: False
 num_render_views: 50
 
 # data options
-H: 1080
-W: 1080
-ratio: 1.
-num_train_frame: 230
+# H: 1080
+# W: 1080
+# ratio: 1.
+# num_train_frame: 230
 
 # voxel_size: [0.25, 0.25, 0.25]  # dhw - Starting voxel size
-voxel_size: 0.12
+voxel_size: 0.06 #0.12
 
 # record options
 log_interval: 1

@@ -45,8 +45,8 @@ def train(cfg, network):
     feat_gen = make_feat_gen(cfg, cam_bbox)
     feat_gen.gen_feat_volume(feat_loader, recorder)
 
-    if cfg.distributed:
-        synchronize()
+    # if cfg.distributed:
+    #     synchronize()
 
     vol_feat = feat_gen.get_vol_feat()
     network.set_vol_feat(vol_feat)

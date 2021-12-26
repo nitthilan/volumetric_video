@@ -55,13 +55,16 @@ class Dataset(data.Dataset):
         img = imageio.imread(self.img_files[index]).astype(np.float32) / 255.
 
         # only load image at this time
+        # print("Image shape ", img.shape)
         img = cv2.resize(img, (self.W, self.H), interpolation=cv2.INTER_AREA)
+        # print("Image shape A ", img.shape)
         img = img.reshape((-1, 3))
 
         rays_o, rays_d = u.get_rays_single_image(self.H, self.W,
                                     self.intrinsics, self.poses[index])
-        depth, seg_msk = u.get_depth_value(self.depth_files[index], 
+        depth = u.get_depth_value(self.depth_files[index], 
             self.confidence_files[index], self.confidence_level, self.H, self.W)
+        depth = depth.reshape((-1))
 
         near = depth.copy() * (1 - self.dpth_smpl_per)
         far = depth.copy() * (1 + self.dpth_smpl_per)
@@ -72,45 +75,12 @@ class Dataset(data.Dataset):
             ('near', near[depth != 0]),
             ('far', far[depth != 0]),
             ('rgb', img[depth != 0]),
-            ('msk', seg_msk[depth != 0]),
+            # ('msk', seg_msk[depth != 0]),
         ])
         # return torch tensors
         for k in ret:
             if ret[k] is not None:
                 ret[k] = torch.from_numpy(ret[k])
-
-        # print("Image shape ", ret['ray_o'].shape)
-
-        # ret = {
-        #     'coord': coord,
-        #     'out_sh': out_sh,
-        #     'rgb': rgb,
-        #     'ray_o': ray_o,
-        #     'ray_d': ray_d,
-        #     'near': near,
-        #     'far': far,
-        #     'mask_at_box': mask_at_box,
-        #     'msk': msk
-        # }
-
-        # R = cv2.Rodrigues(Rh)[0].astype(np.float32)
-        # meta = {
-        #     'bounds': bounds,
-        #     'R': R,
-        #     'Th': Th,
-        #     'latent_index': latent_index,
-        #     'frame_index': frame_index,
-        #     'view_index': 0
-        # }
-        # ret.update(meta)
-
-        # Rh0 = self.params['pose'][index][:3]
-        # R0 = cv2.Rodrigues(Rh0)[0].astype(np.float32)
-        # Th0 = self.params['trans'][index].astype(np.float32)
-        # meta = {'R0_snap': R0, 'Th0_snap': Th0, 'K': K, 'RT': RT}
-        # ret.update(meta)
-
-
 
         return ret
 

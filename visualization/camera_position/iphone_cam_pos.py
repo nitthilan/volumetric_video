@@ -5,6 +5,7 @@ import argparse
 from scipy.spatial.transform import Rotation
 
 
+# python3 iphone_cam_pos.py --dataset  ~/Downloads/smpl/iphone12/harsh_ipadpro12/water_pump/
 
 def read_args():
     parser = argparse.ArgumentParser()
@@ -13,12 +14,25 @@ def read_args():
     # parser.add_argument('--confidence', type=int, default=2)
     return parser.parse_args()
 
+def read_lines(flags):
+    with open(os.path.join(flags.dataset, 'non_blurry.txt'), 'r') as file:
+        file_lst = file.read().replace('\n', ' ').split(' ')
+
+    return file_lst
+
 def read_data(flags):
     intrinsics = np.loadtxt(os.path.join(flags.dataset, 'camera_matrix.csv'), delimiter=',')
     odometry = np.loadtxt(os.path.join(flags.dataset, 'odometry.csv'), delimiter=',', skiprows=1)
+    file_lst = read_lines(flags)
+
+    # print(file_lst, odometry)
+
     poses = []
 
-    for line in odometry:
+    # for line in odometry:
+    for file in file_lst[:-1]:
+        print(file[:-4])
+        line = odometry[int(file[:-4])]
         # x, y, z, qx, qy, qz, qw
         position = line[2:5]
         quaternion = line[5:]
@@ -81,11 +95,15 @@ def visualize_cameras(colored_camera_dicts, sphere_radius, camera_size=0.1, geom
     sphere.paint_uniform_color((1, 0, 0))
 
     coord_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.5, origin=[0., 0., 0.])
-    things_to_draw = [sphere, coord_frame]
+    # things_to_draw = [sphere, coord_frame]
+    things_to_draw = [coord_frame]
 
     idx = 0
     for color, camera_dict in colored_camera_dicts:
         idx += 1
+
+        # print("Intrinsics ", np.linalg.inv(camera_dict['intrinsics'][:3, :3]),
+        #     camera_dict['intrinsics'])
 
         # print(camera_dict['poses'], camera_dict['intrinsics'])
         cnt = 0
@@ -95,6 +113,10 @@ def visualize_cameras(colored_camera_dicts, sphere_radius, camera_size=0.1, geom
             K = camera_dict['intrinsics'] #np.array(camera_dict[img_name]['K']).reshape((4, 4))
             # W2C = np.array(camera_dict[img_name]['W2C']).reshape((4, 4))
             C2W = np.linalg.inv(W2C)
+
+            # print("W2C and C2W ")
+            # print(C2W)
+            # print(W2C)
             # img_size = camera_dict[img_name]['img_size']
             img_size = (1920, 1440)
             frustums.append(get_camera_frustum(img_size, K, W2C, frustum_length=camera_size, color=color))
@@ -105,6 +127,8 @@ def visualize_cameras(colored_camera_dicts, sphere_radius, camera_size=0.1, geom
 
         C2W_list = np.array(C2W_list)
         print("Min and max ", np.min(C2W_list, axis=0), np.max(C2W_list, axis=0))
+        print("Min and max ", np.min(camera_dict['poses'][::15], axis=0), \
+            np.max(camera_dict['poses'][::15], axis=0))
 
     if geometry_file is not None:
         if geometry_type == 'mesh':

@@ -83,7 +83,7 @@ def get_files_lst(basedir, skip, split):
 ########################################################################################################################
 # ray batch sampling
 ########################################################################################################################
-def get_rays_single_image(H, W, intrinsics, c2w):
+def get_rays_single_image(H, W, intrinsics, w2c):
     '''
     :param H: image height
     :param W: image width
@@ -91,25 +91,48 @@ def get_rays_single_image(H, W, intrinsics, c2w):
     :param c2w: 4 by 4 camera to world extrinsic matrix
     :return:
     '''
-    u, v = np.meshgrid(np.arange(W), np.arange(H))
+    # https://numpy.org/doc/stable/reference/generated/numpy.meshgrid.html
+    # https://kornia.readthedocs.io/en/latest/_modules/kornia/utils/grid.html
+    u, v = np.meshgrid(np.arange(W), np.arange(H), indexing='xy')
 
-    # print("U V ", u, v) - first width and then height
+    # print("U V ", u.shape, v.shape)# - first width and then height
 
     u = u.reshape(-1).astype(dtype=np.float32) + 0.5    # add half pixel
     v = v.reshape(-1).astype(dtype=np.float32) + 0.5
     pixels = np.stack((u, v, np.ones_like(u)), axis=0)  # (3, H*W)
 
-    rays_d = np.dot(np.linalg.inv(intrinsics[:3, :3]), pixels)
-    rays_d = np.dot(c2w[:3, :3], rays_d)  # (3, H*W)
-    rays_d = rays_d.transpose((1, 0))  # (H*W, 3)
-    rays_d_mag = np.linalg.norm(rays_d, axis=1, keepdims=True)
-    rays_d = rays_d/(rays_d_mag + 1e-7)
+    # if(W == 640):
+    #     print(pixels[:, 470:490].transpose())
+    #     print(pixels[:, 630:650].transpose())
 
-    rays_o = c2w[:3, 3].reshape((1, 3))
+    rays_d = np.dot(np.linalg.inv(intrinsics[:3, :3]), pixels)
+    # print("Ray directions ")
+    # print(intrinsics)
+    # print(np.linalg.inv(intrinsics[:3, :3]))
+    # print(pixels[:, :20])
+    # print(rays_d[:, :20])
+    # c2w = np.linalg.inv(w2c)
+    # print(rays_d[:, 230:250].transpose())
+
+    rays_d = np.dot(w2c[:3, :3], rays_d)  # (3, H*W)
+    rays_d = rays_d.transpose((1, 0))  # (H*W, 3)
+    # print(c2w)
+    # print(rays_d[:20])
+
+    # rays_d_mag = np.linalg.norm(rays_d, axis=1, keepdims=True)
+    # rays_d = rays_d/(rays_d_mag + 1e-7)
+
+    # print("The ray magnitude ", rays_d_mag[:20])
+
+    rays_o = w2c[:3, 3].reshape((1, 3))
     rays_o = np.tile(rays_o, (rays_d.shape[0], 1))  # (H*W, 3)
 
     # print("Origin and direction ", rays_d_mag.shape, rays_d[:10], rays_d_mag[:10])
-
+    # print(rays_d[:20])
+    # print(rays_o[:20])
+    # data = np.random.rand(4,5)
+    # print("ordering ", data.shape, data, data.reshape(-1))
+    
     return rays_o, rays_d
 
 def get_depth_value(depth_path, confidence_path, confidence_level, 
@@ -118,18 +141,20 @@ def get_depth_value(depth_path, confidence_path, confidence_level,
     confidence = cv2.imread(confidence_path)[:, :, 0]
     depth[confidence < confidence_level] = 0
 
+    # print("Depth shape B", depth.shape)
     depth = cv2.resize(depth, (feat_w, feat_h), interpolation=cv2.INTER_NEAREST_EXACT)
-    seg_msk = np.zeros_like(depth, dtype=float)
     # print("Depth shape ", depth.shape)
-    depth[depth < min_depth_th] = 0
-    seg_msk[depth < min_depth_th] = 0
-    # Creating segmentation mask
-    seg_msk[depth >= max_depth_th] = 0
-    depth[depth >= max_depth_th] = 0
-    depth = depth.reshape((-1)).astype(np.float32) / 1000.0
-    seg_msk = seg_msk.reshape((-1))
 
-    return depth, seg_msk
+    # seg_msk = np.zeros_like(depth, dtype=float)
+    depth[depth < min_depth_th] = 0
+    # seg_msk[depth < min_depth_th] = 0
+    # Creating segmentation mask
+    # seg_msk[depth >= max_depth_th] = 0
+    depth[depth >= max_depth_th] = 0
+    depth = depth.astype(np.float32) / 1000.0
+    # seg_msk = seg_msk.reshape((-1))
+
+    return depth
 
 def get_normalized_image(img, width, height):
     

@@ -24,32 +24,10 @@ class Renderer:
 
         pts = ray_o[:, :, None] + ray_d[:, :, None] * z_vals[..., None]
 
+        # print("Points shape ", pts.shape)
+
         return pts, z_vals
 
-    def prepare_sp_input(self, batch):
-        # feature, coordinate, shape, batch size
-        sp_input = {}
-
-        # coordinate: [N, 4], batch_idx, z, y, x
-        sh = batch['coord'].shape
-        idx = [torch.full([sh[1]], i) for i in range(sh[0])]
-        idx = torch.cat(idx).to(batch['coord'])
-        coord = batch['coord'].view(-1, sh[-1])
-        sp_input['coord'] = torch.cat([idx[:, None], coord], dim=1)
-
-        out_sh, _ = torch.max(batch['out_sh'], dim=0)
-        sp_input['out_sh'] = out_sh.tolist()
-        sp_input['batch_size'] = sh[0]
-
-        # used for feature interpolation
-        sp_input['bounds'] = batch['bounds']
-        sp_input['R'] = batch['R']
-        sp_input['Th'] = batch['Th']
-
-        # used for color function
-        sp_input['latent_index'] = batch['latent_index']
-
-        return sp_input
 
     def get_density_color(self, wpts, viewdir, raw_decoder):
         n_batch, n_pixel, n_sample = wpts.shape[:3]
@@ -64,7 +42,7 @@ class Renderer:
         wpts, z_vals = self.get_sampling_points(ray_o, ray_d, near, far)
 
         # viewing direction
-        viewdir = ray_d #/ torch.norm(ray_d, dim=2, keepdim=True)
+        viewdir = ray_d / torch.norm(ray_d, dim=2, keepdim=True)
 
         raw_decoder = lambda x_point, viewdir_val: self.net.calculate_density_color(
             x_point, viewdir_val, feature_volume)
@@ -100,6 +78,9 @@ class Renderer:
         # encode neural body
         # sp_input = self.prepare_sp_input(batch)
         feature_volume = self.net.cal_3d_conv()
+        # feat_vol_sum = torch.sum(feature_volume[0], dim=1).squeeze()
+        # print("Feature volume ", feature_volume[0].shape,
+        #     torch.nonzero(feat_vol_sum).shape)
 
 
         # volume rendering for each pixel
