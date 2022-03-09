@@ -14,8 +14,8 @@ feat_gen:
 
 network_module: 'lib.networks.img_feat_xyzc'
 network_path: 'lib/networks/img_feat_xyzc.py'
-# renderer_module: 'lib.networks.renderer.img_feat_renderer'
-# renderer_path: 'lib/networks/renderer/img_feat_renderer.py'
+renderer_module: 'lib.networks.renderer.img_feat_renderer'
+renderer_path: 'lib/networks/renderer/img_feat_renderer.py'
 
 trainer_module: 'lib.train.trainers.img_feat_trainer'
 trainer_path: 'lib/train/trainers/img_feat_trainer.py'
@@ -23,8 +23,8 @@ trainer_path: 'lib/train/trainers/img_feat_trainer.py'
 evaluator_module: 'lib.evaluators.if_nerf'
 evaluator_path: 'lib/evaluators/if_nerf.py'
 
-visualizer_module: 'lib.visualizers.if_nerf'
-visualizer_path: 'lib/visualizers/if_nerf.py'
+visualizer_module: 'lib.visualizers.img_feat'
+visualizer_path: 'lib/visualizers/img_feat.py'
 
 train_dataset:
     data_root: '/nitthilan/data/iphone12_pro/harsh_ipadpro12/'
@@ -74,7 +74,7 @@ num_render_views: 50
 # data options
 # H: 1080
 # W: 1080
-# ratio: 1.
+ratio: 3.0
 # num_train_frame: 230
 
 # voxel_size: [0.25, 0.25, 0.25]  # dhw - Starting voxel size

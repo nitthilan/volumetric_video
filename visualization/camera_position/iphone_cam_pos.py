@@ -30,7 +30,7 @@ def read_data(flags):
     poses = []
 
     # for line in odometry:
-    for file in file_lst[:-1]:
+    for file in sorted(file_lst[:-1]):
         print(file[:-4])
         line = odometry[int(file[:-4])]
         # x, y, z, qx, qy, qz, qw
@@ -53,10 +53,10 @@ def get_camera_frustum(img_size, K, W2C, frustum_length=0.5, color=[0., 1., 0.])
 
     # build view frustum for camera (I, 0)
     frustum_points = np.array([[0., 0., 0.],                          # frustum origin
-                               [-half_w, -half_h, -frustum_length],    # top-left image corner
-                               [half_w, -half_h, -frustum_length],     # top-right image corner
-                               [half_w, half_h, -frustum_length],      # bottom-right image corner
-                               [-half_w, half_h, -frustum_length]])    # bottom-left image corner
+                               [-half_w, -half_h, frustum_length],    # top-left image corner
+                               [half_w, -half_h, frustum_length],     # top-right image corner
+                               [half_w, half_h, frustum_length],      # bottom-right image corner
+                               [-half_w, half_h, frustum_length]])    # bottom-left image corner
     frustum_lines = np.array([[0, i] for i in range(1, 5)] + [[i, (i+1)] for i in range(1, 4)] + [[4, 1]])
     frustum_colors = np.tile(np.array(color).reshape((1, 3)), (frustum_lines.shape[0], 1))
 
@@ -64,8 +64,12 @@ def get_camera_frustum(img_size, K, W2C, frustum_length=0.5, color=[0., 1., 0.])
     #                            np.tile(np.array([[0., 1., 0.]]), (4, 1))))
 
     # transform view frustum from (I, 0) to (R, t)
-    C2W = np.linalg.inv(W2C)
+    # C2W = np.linalg.inv(W2C)
+    C2W = W2C
+    # print("Frustrum points ")
+    # print(frustum_points)
     frustum_points = np.dot(np.hstack((frustum_points, np.ones_like(frustum_points[:, 0:1]))), C2W.T)
+    # print(frustum_points)
     frustum_points = frustum_points[:, :3] / frustum_points[:, 3:4]
 
     return frustum_points, frustum_lines, frustum_colors
@@ -109,7 +113,7 @@ def visualize_cameras(colored_camera_dicts, sphere_radius, camera_size=0.1, geom
         cnt = 0
         frustums = []
         C2W_list = []
-        for W2C in camera_dict['poses'][::15]:
+        for W2C in camera_dict['poses'][::10]:
             K = camera_dict['intrinsics'] #np.array(camera_dict[img_name]['K']).reshape((4, 4))
             # W2C = np.array(camera_dict[img_name]['W2C']).reshape((4, 4))
             C2W = np.linalg.inv(W2C)
@@ -126,9 +130,10 @@ def visualize_cameras(colored_camera_dicts, sphere_radius, camera_size=0.1, geom
         things_to_draw.append(cameras)
 
         C2W_list = np.array(C2W_list)
-        print("Min and max ", np.min(C2W_list, axis=0), np.max(C2W_list, axis=0))
-        print("Min and max ", np.min(camera_dict['poses'][::15], axis=0), \
-            np.max(camera_dict['poses'][::15], axis=0))
+        # print("Min and max ", np.min(C2W_list, axis=0), np.max(C2W_list, axis=0))
+        print("Min and max ")
+        print(np.min(camera_dict['poses'][::10], axis=0))
+        print(np.max(camera_dict['poses'][::10], axis=0))
 
     if geometry_file is not None:
         if geometry_type == 'mesh':

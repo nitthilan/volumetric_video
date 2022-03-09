@@ -6,6 +6,8 @@ import cv2
 from skvideo import io
 # from stray_visualize import DEPTH_WIDTH, DEPTH_HEIGHT, _resize_camera_matrix
 from scipy.spatial.transform import Rotation
+import matplotlib.pyplot as plt
+
 
 
 def read_args():
@@ -29,10 +31,15 @@ def write_frames(stray_app_path):
         print("Writing rgb frame ", i, frame.shape, OUT_WIDTH, OUT_HEIGHT)
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         if(OUT_WIDTH != frame.shape[1] or OUT_HEIGHT != frame.shape[0]):
-        	frame = cv2.resize(frame, (OUT_WIDTH, OUT_HEIGHT))
+            frame = cv2.resize(frame, (OUT_WIDTH, OUT_HEIGHT))
         frame_path = os.path.join(rgb_out_dir, f"{i:06}.jpg")
         params = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
         cv2.imwrite(frame_path, frame, params)
+
+def resize_depth(depth):
+    out = cv2.resize(depth, (OUT_WIDTH, OUT_HEIGHT), interpolation=cv2.INTER_NEAREST_EXACT)
+    out[out < 10] = 0
+    return out
 
 def write_depth(flags):
     depth_out_dir = os.path.join(flags.dataset, 'processed_depth') 
@@ -82,6 +89,7 @@ def write_depth_seg_mask(flags, width, height):
     files = sorted(os.listdir(depth_dir_in))
     for filename in files:
         if '.npy' not in filename:
+            # print("File ", filename)
             continue
         # print(f"Writing depth frame {filename}", end='\r')
         number, _ = filename.split('.')
@@ -92,7 +100,7 @@ def write_depth_seg_mask(flags, width, height):
 
         depth[confidence < flags.confidence] = 0
 
-        hist, bin_edges = np.histogram(depth)
+        # hist, bin_edges = np.histogram(depth)
         # print("Min and max ", filename, np.mean(depth))
         # print(hist, bin_edges)
 
@@ -144,16 +152,63 @@ def read_data(flags):
     return { 'poses': poses, 'intrinsics': intrinsics }
 
 
+def read_imgs(flags):
+    depth_dir_in = os.path.join(flags.dataset, 'depth')
+    confidence_dir = os.path.join(flags.dataset, 'confidence')
+    rgb_dir = os.path.join(flags.dataset, 'rgb')
+    files = sorted(os.listdir(depth_dir_in))
+    for filename in files:
+        if '.npy' not in filename:
+            continue
+        print(f"Writing depth frame {filename}", end='\r')
+        number, _ = filename.split('.')
+        depth = np.load(os.path.join(depth_dir_in, filename))
+        confidence = cv2.imread(os.path.join(confidence_dir, number + '.png'))[:, :, 0]
+        rgb = cv2.imread(os.path.join(rgb_dir, number + '.jpg'))/255.0
+
+        print("Depth and confidence ", depth.shape, confidence.shape, rgb.shape,
+            np.min(depth), np.max(depth), np.min(confidence), np.max(confidence),
+            np.max(rgb))
+
+        print("Confidence values", np.sum(confidence==0), np.sum(confidence==1),
+            np.sum(confidence==2))
+
+        depth[depth >= 4000] = 0
+        # depth[confidence < 1] = 0
+        depth = resize_depth(depth, 1920, 1440)/1000.0
+
+        rgb[depth == 0] = 0
+
+        imgplot = plt.imshow(confidence)
+        plt.show()
+        imgplot = plt.imshow(depth)
+        plt.show()
+
+        exit()
+
+        # print("Min Max depth Conf 0 ", np.min(depth[confidence == 0] ),
+        #     np.max(depth[confidence == 0] ), np.mean(depth[confidence == 0]),
+        #     depth[confidence == 0].shape)
+        # print("Min Max depth Conf 1 ", np.min(depth[confidence == 1] ),
+        #     np.max(depth[confidence == 1] ), np.mean(depth[confidence == 1]),
+        #     depth[confidence == 1].shape)
+        # print("Min Max depth Conf 2 ", np.min(depth[confidence == 2] ),
+        #     np.max(depth[confidence == 2] ), np.mean(depth[confidence == 2]),
+        #     depth[confidence == 2].shape)
+
+
 
 def main():
     flags = read_args()
     # write_frames(flags.dataset)
     # write_depth_seg_mask(flags, 1920, 1440)
     # write_depth(flags)
-    cam_info = read_data(flags)
-    poses = np.array(cam_info['poses'])
+    # cam_info = read_data(flags)
+    # poses = np.array(cam_info['poses'])
     # print("Min Max ", np.min(poses[:, :3, 3], axis=0), np.max(poses[:, :3, 3], axis=0))
-    print(len(cam_info['poses']))
+    # print(len(cam_info['poses']))
+
+    read_imgs(flags)
 
 
 if __name__ == "__main__":

@@ -315,6 +315,8 @@ def load_model(net,
                                                '{}.pth'.format(pth))))
     pretrained_model = torch.load(
         os.path.join(model_dir, '{}.pth'.format(pth)), 'cpu')
+
+
     net.load_state_dict(pretrained_model['net'])
     optim.load_state_dict(pretrained_model['optim'])
     scheduler.load_state_dict(pretrained_model['scheduler'])
@@ -375,7 +377,20 @@ def load_network(net, model_dir, resume=True, epoch=-1, strict=True):
 
     print('load model: {}'.format(model_path))
     pretrained_model = torch.load(model_path)
-    net.load_state_dict(pretrained_model['net'], strict=strict)
+
+    # print("Pretrained models ", pretrained_model['net'].keys())
+
+    new_keys = ['mean_feat', 'coord', 'out_sh', 'vox_min']
+    net_dict = {}
+    vol_feat = {}
+    for key in pretrained_model['net'].keys():
+        if(key in new_keys):
+            vol_feat[key] = pretrained_model['net'][key]
+        else:
+            net_dict[key] = pretrained_model['net'][key]
+
+    net.load_state_dict(net_dict, strict=strict)
+    net.set_vol_feat(vol_feat)
     return pretrained_model['epoch'] + 1
 
 

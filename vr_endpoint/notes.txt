@@ -19,3 +19,6 @@ Tasks:
 - CoRoutines: https://docs.unity3d.com/Manual/Coroutines.html
 
 - https://www.youtube.com/playlist?list=PL4mtHuMZdZjxFVJShgmXRqvABRa-AJmvH - Unity VR Basics
+
+- https://learn.unity.com/tutorial/vr-locomotion?uv=2020.3&courseId=60183276edbc2a2e6c4c7dae&projectId=60183335edbc2a2e6c4c7dcb#60226b2dedbc2a1727852c7a
+- https://www.youtube.com/watch?v=yxMzAw2Sg5w&list=TLPQMTQwMTIwMjKa97HLs9P3XQ&index=1&ab_channel=JustinPBarnett-VRGameDev

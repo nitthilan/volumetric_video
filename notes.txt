@@ -13,7 +13,15 @@ podman run -it --rm --ipc=host -v /local/data/nitthilan/:/nitthilan/ --name nitt
 podman exec -it nitt_pytorch /bin/bash
 
 
- alias run_rsync=' sshpass -p "nitt1983" rsync -azP --progress --stats --exclude ".*/" --exclude ".*" --exclude "tmp/" /Users/kannappanjayakodinitthilan/Documents/old_laptop/virtual_studio/volumetric_video njayakodi_dg@g18a.eecs.wsu.edu:/local/data/nitthilan1/source_code/'
+podman run -it --rm --ipc=host -v /local/data/nitthilan/:/nitthilan/ --name nitt_pytorch docker.io/pytorch/pytorch:1.7.1-cuda11.0-cudnn8-devel 
+podman exec -it nitt_pytorch /bin/bash
 
- docker run -it --rm --ipc=host -v /local/data/nitthilan1/:/nitthilan/ --name nitt_pytorch pytorch/pytorch:1.6.0-cuda10.1-cudnn7-devel 
+
+
+alias run_rsync=' sshpass -p "nitt1983" rsync -azP --progress --stats --exclude ".*/" --exclude ".*" --exclude "tmp/" /Users/kannappanjayakodinitthilan/Documents/old_laptop/virtual_studio/volumetric_video njayakodi_dg@g18a.eecs.wsu.edu:/local/data/nitthilan1/source_code/'
+
+docker run -it --rm --ipc=host -v /local/data/nitthilan1/:/nitthilan/ --name nitt_pytorch pytorch/pytorch:1.6.0-cuda10.1-cudnn7-devel 
+
+docker run -it --rm --ipc=host -v /local/data/nitthilan1/:/nitthilan/ --name nitt_pytorch1.9 pytorch/pytorch:1.9.0-cuda10.2-cudnn7-devel
+
 

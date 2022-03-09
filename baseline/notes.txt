@@ -1,0 +1,31 @@
+https://cs184team.github.io/cs184-final/writeup.html - 
+http://www.cs.cmu.edu/~quake/triangle.html
+
+
+depth map to point cloud - point cloud to mesh algorithm - point cloud to mesh software - 3d object scan iphone 12 - iphone 12 lidar to mesh algorithm - lidar to mesh software
+- https://pointfuse.com/, http://lastools.org/, https://blogs.gre.ac.uk/designsupport/3d-realisation/laser-scanning/meshlab-point-cloud-to-mesh/
+- http://www.resurf3d.com/helpdoc/english/Tutorial%209-Point%20Cloud%20to%20mesh.htm
+
+Apple interfaces:
+- Visualizing and Interacting with a Reconstructed Scene - https://developer.apple.com/documentation/arkit/content_anchors/visualizing_and_interacting_with_a_reconstructed_scene
+- https://developer.apple.com/documentation/arkit/environmental_analysis/displaying_a_point_cloud_using_scene_depth
+
+
+Scanning apps:
+- https://scaniverse.com/
+- https://manuvision.medium.com/what-ive-learned-after-100-days-of-3d-scans-with-the-iphone-12-pro-lidar-c6bd31038f4d
+- https://albn.medium.com/3d-scanning-with-the-iphone-lidar-8cbd723fc9ab
+- https://patriciaesteban.medium.com/30-days-of-3d-scan-ceaff2ab8c95
+- https://kyle-pace.medium.com/capturing-the-world-in-3d-where-to-start-with-lidar-on-ios-f13ca977603e
+- https://sketchfab.com/manu.vision/collections/1scanaday-lidar-challenge
+
+
+
+Increase confidence level
+script the entire narration on human motion capture problems
+
+Intel, Adobe, Facebook, Nvidia, Dolby sign
+
+Google, 
+
+

@@ -23,3 +23,8 @@ Networks:
 
 All tpose looks not useful as of now. Not used.
 Dataset:
+
+
+CUDA_VISIBLE_DEVICES=2,3 python -m torch.distributed.launch --nproc_per_node=2 --master_port 66660 train_net.py --cfg_file ./configs/iphone_pro/iphone_pro_water_pump.yaml exp_name water_pump resume False gpus "2, 3" distributed True
+
+CUDA_VISIBLE_DEVICES=2,3 python run.py --type evaluate --cfg_file ./configs/iphone_pro/iphone_pro_water_pump.yaml exp_name water_pump

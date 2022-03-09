@@ -16,3 +16,19 @@ CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=4 t
 CUDA_VISIBLE_DEVICES=2,3 python -m torch.distributed.launch --nproc_per_node=2 --master_port 66660 train_net.py --cfg_file ./configs/iphone_pro/iphone_pro_water_pump.yaml exp_name water_pump resume False distributed True
 
 CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 train_net.py --cfg_file ./configs/iphone_pro/iphone_pro_water_pump.yaml exp_name water_pump resume False distributed True
+
+
+
+alias run_rsync='rsync -azP -e "ssh -i ~/.ssh/id_ed25519" --progress --stats --exclude ".*/" --exclude ".*" --exclude "tmp/" /Users/kannappanjayakodinitthilan/Documents/old_laptop/virtual_studio/volumetric_video njayakodi_dg@dg20a.eecs.wsu.edu:/local/data/nitthilan/source_code/'
+
+
+non-rigid neural radiance fields: https://dellaert.github.io/NeRF21/
+https://arxiv.org/pdf/2011.12948.pdf - Nerfies
+https://arxiv.org/pdf/2011.13961.pdf - D-NeRF: Neural Radiance Fields for Dynamic Scenes
+curriculum learning strategy
+rigid transform as a screw axis - http://www2.ece.ohio-state.edu/~zhang/RoboticsClass/docs/LN4_RigidBodyMotion.pdf - 
+deformation SE(3)
+Anchored: https://github.com/nogu-atsu/NARF
+https://zju3dv.github.io/animatable_nerf/
+https://arxiv.org/pdf/2012.15838.pdf - neural body
+

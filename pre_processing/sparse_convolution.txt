@@ -1,0 +1,9 @@
+https://arxiv.org/pdf/1505.02890.pdf - Sparse 3D convolutional neural networks - https://github.com/facebookresearch/SparseConvNet - https://github.com/traveller59/spconv/blob/master/docs/USAGE.md - https://github.com/traveller59/spconv/blob/master/docs/spconv2_algo.pdf
+
+Octree convolutions - https://wang-ps.github.io/O-CNN_files/CNN3D.pdf - https://gist.github.com/qsobad/8e244e636cd64d168d1c832807b558a9
+
+Putting NeRF on Diet: https://arxiv.org/pdf/2104.00677.pdf
+
+HyperNeRF: A Higher-Dimensional Representation for Topologically Varying Neural Radiance Fields - https://arxiv.org/pdf/2106.13228.pdf
+
+adop: approximate differentiable one-pixel point rendering - https://github.com/darglein/ADOP - https://arxiv.org/pdf/2110.06635.pdf

@@ -75,6 +75,7 @@ class Dataset(data.Dataset):
             ('near', near[depth != 0]),
             ('far', far[depth != 0]),
             ('rgb', img[depth != 0]),
+            ('depth', depth),
             # ('msk', seg_msk[depth != 0]),
         ])
         # return torch tensors

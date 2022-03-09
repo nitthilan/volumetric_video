@@ -16,6 +16,7 @@ file_list = [file for file in glob.glob("{}/*.jpg".format(rgb_filelst))]
 num_blurry = 0
 num_non_blurry = 0
 non_blurry_file_list = []
+blurry_file_list = {}
 for file in file_list:
 	image = cv2.imread(file)
 	gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -23,14 +24,20 @@ for file in file_list:
 	text = "Not Blurry"
 
 	if fm < args["threshold"]:
-		text = "Blurry"
+		# print("Blurry ", file.split("/")[-1], fm)
 		num_blurry += 1
+		blurry_file_list[file.split("/")[-1]] = fm
+		# break
 	else:
 		non_blurry_file_list.append(file.split("/")[-1])
-		print(file.split("/")[-1], fm)
+		# print(file.split("/")[-1], fm)
 		num_non_blurry += 1
 
 print("total number of blurry ", len(file_list), num_blurry, num_non_blurry)
+
+# print(blurry_file_list)
+for file in sorted(blurry_file_list.keys()):
+	print(file, blurry_file_list[file])
 
 non_blurry_file = os.path.join(args['images'], "non_blurry.txt")
 
