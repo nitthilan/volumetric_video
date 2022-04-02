@@ -17,6 +17,9 @@ podman run -it --rm --ipc=host -v /local/data/nitthilan/:/nitthilan/ --name nitt
 podman exec -it nitt_pytorch /bin/bash
 
 
+alias run_rsync=' sshpass -p "nitt1983" rsync -azP --progress --stats --exclude ".*/" --exclude ".*" --exclude "tmp/" /Users/kannappanjayakodinitthilan/Documents/old_laptop/virtual_studio/volumetric_video njayakodi_dg@dg20b.eecs.wsu.edu:/local/data/nitthilan/source_code/'
+
+
 
 alias run_rsync=' sshpass -p "nitt1983" rsync -azP --progress --stats --exclude ".*/" --exclude ".*" --exclude "tmp/" /Users/kannappanjayakodinitthilan/Documents/old_laptop/virtual_studio/volumetric_video njayakodi_dg@g18a.eecs.wsu.edu:/local/data/nitthilan1/source_code/'
 

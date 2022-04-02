@@ -147,7 +147,7 @@ def read_data(flags):
 
 def main():
     flags = read_args()
-    # write_frames(flags.dataset)
+    write_frames(flags.dataset)
     # write_depth_seg_mask(flags, 1920, 1440)
     # write_depth(flags)
     cam_info = read_data(flags)

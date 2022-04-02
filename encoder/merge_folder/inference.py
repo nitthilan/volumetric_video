@@ -31,66 +31,40 @@ if __name__ == "__main__":
     max_depth = 4.0
     voxel_size = 0.1
     max_hits = 40
-    batch_size = 1
 
 
-    tr_dl = dl.NVSD(args.data_dir, skip=skip, split="train", resolution_level = resolution_level, \
+    val_dl = dl.NVSD(args.data_dir, skip=skip, split="val", resolution_level = resolution_level, \
         confidence_level = confidence_level, max_depth=max_depth)
-    dataset = tr_dl.get_full_data(0)
+    dataset = val_dl.get_full_data(0)
     box_min_off = dataset['box_min_off']
     box_dim = dataset['box_dim']
 
 
-
-    nvsdm = dl.NVSDM(args.data_dir, skip=skip, resolution_level=resolution_level, 
-        confidence_level=confidence_level,
-        batch_size=batch_size, num_workers=4, max_depth=max_depth)
-
     num_frames = 860 #522 # hardcoded
 
-    # voxel_base_xyz = occ.calculate_occupancy(tr_dl=tr_dl, 
-    #     confidence_level=confidence_level, max_depth=max_depth, voxel_size=voxel_size)
     # torch.save(voxel_base_xyz, 'occupancy.pt')
     # voxel_base_xyz = torch.load('occupancy_3depth.pt')
     voxel_base_xyz = torch.load('occupancy.pt')
     # print("voxel xyz ", voxel_base_xyz[:10])
-
-    # occ.validate_occupancy(tr_dl=tr_dl, confidence_level=confidence_level, 
-    #     scene_max_depth=max_depth, voxel_size=voxel_size, voxel_base_xyz=voxel_base_xyz,
-    #     max_hits=max_hits)
-
-
-
-    # init model
-    nvse_net = net.NVSEnc(config_path = args.cfg_path, num_frames = num_frames,
-        voxel_size=voxel_size, voxel_base_xyz=voxel_base_xyz, box_min_off=box_min_off,
-        box_dim=box_dim, max_hits=max_hits)
     
     # ckpt_file_path = "./checkpoints/ckpts_nvse_enc_epoch=0535_val_loss=0.0080.ckpt"
+    # ckpt_file_path = "./checkpoints_ct_100/last.ckpt"
     ckpt_file_path = "./checkpoints_ct/ckpts_nvse_enc_epoch=0278_val_loss=0.0021.ckpt"
     nvse_net = net.NVSEnc.load_from_checkpoint(ckpt_file_path, config_path = args.cfg_path, 
         num_frames = num_frames, voxel_size=voxel_size, voxel_base_xyz=voxel_base_xyz, box_min_off=box_min_off,
         box_dim=box_dim, max_hits=max_hits)
 
+    device = "cuda:0"
 
-    ckpt_filename = "ckpts_nvse_enc"
-    # saves a file like: my/path/sample-mnist-epoch=02-val_loss=0.32.ckpt
-    checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss",
-        dirpath="./checkpoints_ct_100/",
-        filename=ckpt_filename+"_{epoch:04d}_{val_loss:.4f}",
-        save_top_k=3,
-        mode="min",
-        save_last=True
-    )
-
-    # most basic trainer, uses good defaults (auto-tensorboard, checkpoints, logs, and more)
-    # trainer = pl.Trainer(gpus=8) (if you have GPUs)
-    trainer = pl.Trainer(gpus=1, accelerator='ddp', max_epochs=10000,
-        callbacks=[checkpoint_callback]) # num_processes=8, - num cpu, precision=16
-    trainer.fit(nvse_net, nvsdm)
-    # print("Output check point ", dir(checkpoint_callback))
-
-    # trainer.test(datamodule=nvsdm)
-
+    nvse_net.eval().to(device)
+    for i, batch in enumerate(val_dl):
+        batch['ray_d'] = batch['ray_d'].unsqueeze(0).to(device)
+        batch['depth'] = batch['depth'].unsqueeze(0).to(device)
+        batch['rgb'] = batch['rgb'].unsqueeze(0).to(device)
+        batch['ray_o'] = batch['ray_o'].unsqueeze(0).to(device)
+        batch['box_min_off'] = batch['box_min_off'].unsqueeze(0).to(device)
+        batch['box_dim'] = batch['box_dim'].unsqueeze(0).to(device)
+        with torch.no_grad():
+            outputs = nvse_net.validation_step(batch, i)
+            print(outputs, batch['file_idx'])
 

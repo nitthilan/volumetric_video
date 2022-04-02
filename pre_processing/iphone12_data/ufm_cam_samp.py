@@ -31,7 +31,7 @@ def read_data(flags):
 
     # for line in odometry:
     for file in sorted(file_lst[:-1]):
-        print(file[:-4])
+        # print(file[:-4])
         line = odometry[int(file[:-4])]
         # x, y, z, qx, qy, qz, qw
         position = line[2:5]
@@ -41,7 +41,45 @@ def read_data(flags):
         T_WC[:3, :3] = Rotation.from_quat(quaternion).as_matrix()
         T_WC[:3, 3] = position
         poses.append(T_WC)
-    return { 'poses': poses, 'intrinsics': intrinsics }
+    return { 'poses': poses, 'intrinsics': intrinsics }, sorted(file_lst[:-1])
+
+def get_angle(vector_1, vector_2):
+    unit_vector_1 = vector_1 / np.linalg.norm(vector_1)
+    unit_vector_2 = vector_2 / np.linalg.norm(vector_2)
+    dot_product = np.dot(unit_vector_1, unit_vector_2)
+    angle = np.arccos(dot_product)*180/np.pi
+    return angle
+
+def avg_dist_pos(camera_det, file_lst, num_images):
+
+    num_pos = len(camera_det['poses'])
+    poses = camera_det['poses']
+    cam_pos = []
+    for i in range(num_pos):
+        cam_pos.append(poses[i][:3, 3])
+        # print()
+    cam_pos = np.array(cam_pos)
+    center = np.mean(cam_pos, axis=0)
+    print("Center ", center)
+    sampled_vector = [cam_pos[0]]
+    sampled_angle = 360.0/num_images
+    sampled_cam_pos = [poses[0]]
+    image_idx_lst = [file_lst[0]]
+
+    for i, _ in enumerate(cam_pos[1:]):
+        vector_1 = sampled_vector[-1] - center
+        vector_2 = cam_pos[i] - center
+        angle = get_angle(vector_1, vector_2)
+        if(angle > sampled_angle):
+            sampled_vector.append(cam_pos[i])
+            sampled_cam_pos.append(poses[i])
+            image_idx_lst.append(file_lst[i])
+            print(file_lst[i], angle, sampled_angle)
+
+    return sampled_cam_pos, image_idx_lst
+
+
+
 
 
 def get_camera_frustum(img_size, K, W2C, frustum_length=0.5, color=[0., 1., 0.]):
@@ -93,60 +131,38 @@ def frustums2lineset(frustums):
 
     return lineset
 
-def visualize_cameras(colored_camera_dicts, sphere_radius, camera_size=0.1, geometry_file=None, geometry_type='mesh'):
-    sphere = o3d.geometry.TriangleMesh.create_sphere(radius=sphere_radius, resolution=10)
-    sphere = o3d.geometry.LineSet.create_from_triangle_mesh(sphere)
-    sphere.paint_uniform_color((1, 0, 0))
+def visualize_cameras(sampled_cam_pos, intrinsics, camera_size=0.1):
 
     coord_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.5, origin=[0., 0., 0.])
     # things_to_draw = [sphere, coord_frame]
     things_to_draw = [coord_frame]
 
-    idx = 0
-    for color, camera_dict in colored_camera_dicts:
-        idx += 1
+    cnt = 0
+    frustums = []
+    for W2C in sampled_cam_pos:#[::10]:
+        K = intrinsics #np.array(camera_dict[img_name]['K']).reshape((4, 4))
 
-        # print("Intrinsics ", np.linalg.inv(camera_dict['intrinsics'][:3, :3]),
-        #     camera_dict['intrinsics'])
-
-        # print(camera_dict['poses'], camera_dict['intrinsics'])
-        cnt = 0
-        frustums = []
-        C2W_list = []
-        for W2C in camera_dict['poses']:#[::10]:
-            K = camera_dict['intrinsics'] #np.array(camera_dict[img_name]['K']).reshape((4, 4))
-            # W2C = np.array(camera_dict[img_name]['W2C']).reshape((4, 4))
-            C2W = np.linalg.inv(W2C)
-
-            # print("W2C and C2W ")
-            # print(C2W)
-            # print(W2C)
-            # img_size = camera_dict[img_name]['img_size']
-            img_size = (1920, 1440)
-            frustums.append(get_camera_frustum(img_size, K, W2C, frustum_length=camera_size, color=color))
-            C2W_list.append(np.linalg.inv(W2C))
-            cnt += 1
-        cameras = frustums2lineset(frustums)
-        things_to_draw.append(cameras)
-
-        C2W_list = np.array(C2W_list)
-        # print("Min and max ", np.min(C2W_list, axis=0), np.max(C2W_list, axis=0))
-        print("Min and max ")
-        print(np.min(camera_dict['poses'][::10], axis=0))
-        print(np.max(camera_dict['poses'][::10], axis=0))
-
-    if geometry_file is not None:
-        if geometry_type == 'mesh':
-            geometry = o3d.io.read_triangle_mesh(geometry_file)
-            geometry.compute_vertex_normals()
-        elif geometry_type == 'pointcloud':
-            geometry = o3d.io.read_point_cloud(geometry_file)
-        else:
-            raise Exception('Unknown geometry_type: ', geometry_type)
-
-        things_to_draw.append(geometry)
+        img_size = (1920, 1440)
+        frustums.append(get_camera_frustum(img_size, K, W2C, frustum_length=camera_size, color=[1,0,0]))
+        cnt += 1
+    cameras = frustums2lineset(frustums)
+    things_to_draw.append(cameras)
 
     o3d.visualization.draw_geometries(things_to_draw)
+
+
+
+
+def sampled_images(basepath, unif_sam_img_lst):
+    unif_sam_img_file = os.path.join(basepath, "unif_sam_img.txt")
+
+    with open(unif_sam_img_file, 'w') as f:
+        for item in unif_sam_img_lst:
+            f.write("%s\n" % item)
+    
+    return
+
+
 
 
 if __name__ == '__main__':
@@ -154,18 +170,10 @@ if __name__ == '__main__':
 
     base_dir = './'
     flags = read_args()
-    camera_det = read_data(flags)
+    camera_det, file_lst = read_data(flags)
+    sampled_cam_pos, unif_sam_img_lst = avg_dist_pos(camera_det, file_lst, 200)
+    print("Total pictures ", len(unif_sam_img_lst))
+    visualize_cameras(sampled_cam_pos, camera_det['intrinsics'], camera_size = .3)
+    
+    sampled_images(flags.dataset, unif_sam_img_lst)
 
-    sphere_radius = 1.
-    # train_cam_dict = json.load(open(os.path.join(base_dir, 'train/cam_dict_norm.json')))
-    # test_cam_dict = json.load(open(os.path.join(base_dir, 'test/cam_dict_norm.json')))
-    # path_cam_dict = json.load(open(os.path.join(base_dir, 'camera_path/cam_dict_norm.json')))
-
-    camera_size = 0.5#0.1
-    colored_camera_dicts = [([0, 1, 0], camera_det),
-                            # ([0, 0, 1], test_cam_dict),
-                            # ([1, 1, 0], path_cam_dict)
-                            ]
-
-    visualize_cameras(colored_camera_dicts, sphere_radius, 
-                      camera_size=camera_size, geometry_file=None, geometry_type=None)
