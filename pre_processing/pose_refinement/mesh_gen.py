@@ -23,8 +23,8 @@ def read_lines(flags):
     with open(os.path.join(flags.dataset, 'unif_sam_img.txt'), 'r') as file:
         file_lst = file.read().replace('\n', ' ').split(' ')
 
-    # return file_lst[:-1:2]
-    return file_lst[:40]
+    return file_lst[:-1:2]
+    # return file_lst#[:40]
 
 def get_intrinsics(flags):
     intrinsics = np.loadtxt(os.path.join(flags.dataset, 'camera_matrix.csv'), delimiter=',')
@@ -98,14 +98,14 @@ def extract_mesh(flags):
         color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8)
 
     for i, filepath in enumerate(file_lst):
-        print(camera_poses[i], get_extrinsics(odometry, filepath))
+        # print(camera_poses[i], get_extrinsics(odometry, filepath))
         print("Integrate {:d}-th image into the volume.".format(i))
         _, source_rgbd_image = get_point_cloud_frm_rgb(flags.dataset, filepath, intrinsic_matrix)
         volume.integrate(
             source_rgbd_image,
             intrinsic_matrix,
-            # np.linalg.inv(get_extrinsics(odometry, filepath)))
-            np.linalg.inv(camera_poses[i]))
+            np.linalg.inv(get_extrinsics(odometry, filepath)))
+            # np.linalg.inv(camera_poses[i]))
     
     mesh = volume.extract_triangle_mesh()
     mesh.compute_vertex_normals()

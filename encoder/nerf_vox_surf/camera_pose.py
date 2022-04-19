@@ -49,11 +49,15 @@ def vec2skew(v):
     :param v:  (3, ) torch tensor
     :return:   (3, 3)
     """
-    zero = torch.zeros(1, dtype=torch.float32, device=v.device)
-    skew_v0 = torch.cat([ zero,    -v[2:3],   v[1:2]])  # (3, 1)
-    skew_v1 = torch.cat([ v[2:3],   zero,    -v[0:1]])
-    skew_v2 = torch.cat([-v[1:2],   v[0:1],   zero])
-    skew_v = torch.stack([skew_v0, skew_v1, skew_v2], dim=0)  # (3, 3)
+    dim0 = v.shape[0]
+    zero = torch.zeros(dim0, 1, dtype=torch.float32, device=v.device)
+    skew_v0 = torch.cat([ zero,    -v[:, 2:3],   v[:, 1:2]], dim=-1)  # (3, 1)
+    skew_v1 = torch.cat([ v[:, 2:3],   zero,    -v[:, 0:1]], dim=-1)
+    skew_v2 = torch.cat([-v[:, 1:2],   v[:, 0:1],   zero], dim=-1)
+    # print("vec2skew ", zero.shape, v[:, 2:3].shape, skew_v0.shape)
+
+    skew_v = torch.stack([skew_v0, skew_v1, skew_v2], dim=-1)  # (3, 3)
+    skew_v = torch.transpose(skew_v, 1, 2)
     return skew_v  # (3, 3)
 
 
@@ -63,9 +67,13 @@ def Exp(r):
     :return:  (3, 3)
     """
     skew_r = vec2skew(r)  # (3, 3)
-    norm_r = r.norm() + 1e-15
-    eye = torch.eye(3, dtype=torch.float32, device=r.device)
+    norm_r = r.norm(dim=-1).unsqueeze(-1).unsqueeze(-1) + 1e-15
+    eye = torch.eye(3, dtype=torch.float32, device=r.device).unsqueeze(0)
+    # print("Exp shape ", eye.shape, skew_r.shape, norm_r.shape, (skew_r @ skew_r).shape)
     R = eye + (torch.sin(norm_r) / norm_r) * skew_r + ((1 - torch.cos(norm_r)) / norm_r**2) * (skew_r @ skew_r)
+    # sqr_r = skew_r @ skew_r
+    # print("Input ", r[0], R[0], skew_r[0], norm_r[0], sqr_r[0], r.shape, R.shape)
+
     return R
 
 

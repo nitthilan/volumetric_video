@@ -38,14 +38,14 @@ def get_rays_single_image(W, H, intrinsics, c2w):
     rays_d = np.dot(np.linalg.inv(intrinsics[:3, :3]), pixels) # (H*W, 3)
     rays_d = rays_d.transpose((1, 0))  # (3, H*W)
     rays_d = np.dot(rays_d, c2w[:3, :3].T)
-    norm_d = np.expand_dims(LA.norm(rays_d, axis=-1), axis=-1)
-    rays_d = rays_d / norm_d 
+    # norm_d = np.expand_dims(LA.norm(rays_d, axis=-1), axis=-1)
+    # rays_d = rays_d / norm_d 
     # print("mesh grid ver ", np.max(rays_d, axis=0), np.min(rays_d, axis=0), 
     #     intrinsics)
     # print(c2w[:3, 3])
     # print(rays_d.shape, LA.norm(rays_d, axis=-1)[:10])
 
-    rays_o = c2w[:3, 3] #.reshape((1, 3))
+    rays_o = c2w[:3, 3]#.reshape((1, 3))
     # rays_o = np.tile(rays_o, (rays_d.shape[0], 1))  # (H*W, 3)
 
     return rays_o, rays_d
@@ -126,11 +126,14 @@ def read_lines(basedir, poses):
     confidence_files = []
     pose_list = []
 
-    for file in sorted(file_lst)[1:]:
+    for file in file_lst[:-1]:
         full_file_name.append(os.path.join(basedir, "rgb", file))
         depth_files.append(os.path.join(basedir, "depth", file[:-4]+".npy"))
         confidence_files.append(os.path.join(basedir, "confidence", file[:-4]+".png"))
         pose_list.append(poses[int(file[:-4])])
+    
+    pose_list = np.load(os.path.join(basedir, 'combined_odo.npy'))
+
     return full_file_name, depth_files, confidence_files, np.array(pose_list)
 
 
@@ -150,11 +153,12 @@ def read_camera_data(basedir):
         T_WC[:3, :3] = Rotation.from_quat(quaternion).as_matrix()
         T_WC[:3, 3] = position
         poses.append(T_WC)
+
     return poses, intrinsics
 
 
 def get_split_index(max_img_idx, split):
-    skip_every = 6
+    skip_every = 20
     test_idx = 0
     val_idx = 1
     idx_lst = []
@@ -214,38 +218,6 @@ def get_files_lst(basedir, skip, split):
 
     img_idxs = get_split_index(img_cnt, split)
     return poses, intrinsics, depth_files, confidence_files, img_files, img_idxs
- 
-
-def get_camera_frustum(img_size, K, W2C, frustum_length=0.5, color=[0., 1., 0.]):
-    W, H = img_size
-    hfov = np.rad2deg(np.arctan(W / 2. / K[0, 0]) * 2.)
-    vfov = np.rad2deg(np.arctan(H / 2. / K[1, 1]) * 2.)
-    half_w = frustum_length * np.tan(np.deg2rad(hfov / 2.))
-    half_h = frustum_length * np.tan(np.deg2rad(vfov / 2.))
-
-    # build view frustum for camera (I, 0)
-    frustum_points = np.array([[0., 0., 0.],                          # frustum origin
-                               [-half_w, -half_h, frustum_length],    # top-left image corner
-                               [half_w, -half_h, frustum_length],     # top-right image corner
-                               [half_w, half_h, frustum_length],      # bottom-right image corner
-                               [-half_w, half_h, frustum_length]])    # bottom-left image corner
-    frustum_lines = np.array([[0, i] for i in range(1, 5)] + [[i, (i+1)] for i in range(1, 4)] + [[4, 1]])
-    frustum_colors = np.tile(np.array(color).reshape((1, 3)), (frustum_lines.shape[0], 1))
-
-    # frustum_colors = np.vstack((np.tile(np.array([[1., 0., 0.]]), (4, 1)),
-    #                            np.tile(np.array([[0., 1., 0.]]), (4, 1))))
-
-    # transform view frustum from (I, 0) to (R, t)
-    # C2W = np.linalg.inv(W2C)
-    C2W = W2C
-    # print("Frustrum points ")
-    # print(frustum_points)
-    frustum_points = np.dot(np.hstack((frustum_points, np.ones_like(frustum_points[:, 0:1]))), C2W.T)
-    # print(frustum_points)
-    frustum_points = frustum_points[:, :3] / frustum_points[:, 3:4]
-
-    return frustum_points, frustum_lines, frustum_colors
-
 
 def get_bounding_box(poses, intrinsics, depth):
     W, H = 1920, 1440
@@ -266,7 +238,7 @@ def get_bounding_box(poses, intrinsics, depth):
         norm_d = np.expand_dims(LA.norm(rays_d, axis=-1), axis=-1)
 
         # print(norm_d, rays_d)
-        rays_d = rays_d / norm_d 
+        # rays_d = rays_d / norm_d 
 
         rays_o = c2w[:3, 3]
 
@@ -329,7 +301,7 @@ class NVSD(torch.utils.data.Dataset):
 
         # hardcoding for water pump
         self.max_depth = max_depth
-        self.num_train_sample = 30240 # 10240 #20480
+        # self.num_train_sample = 30240 # 10240 #20480
 
         self.box_min_off, self.box_dim = \
             get_bounding_box(c2w, intrinsics, depth=self.max_depth)
@@ -337,9 +309,16 @@ class NVSD(torch.utils.data.Dataset):
         return
 
     def __len__(self):
-        total_len = len(self.img_idxs)
+        if(self.split == "train"):
+            total_len = 50*len(self.img_idxs)
         # print("Total length ", total_len)
+        else:
+            total_len = len(self.img_idxs)
         return total_len 
+    
+    def total_files(self):
+        print("Total train files ", len(self.img_idxs))
+        return len(self.img_idxs)
 
 
     def get_full_data(self, idx):
@@ -374,7 +353,11 @@ class NVSD(torch.utils.data.Dataset):
         return ret
 
     def __getitem__(self, idx):
-        file_idx = self.img_idxs[idx]
+        if(self.split == "train"):
+            idx = idx%len(self.img_idxs)
+            file_idx = self.img_idxs[idx]
+        else:
+            file_idx = self.img_idxs[idx]
         img = imageio.imread(self.img_files[file_idx]).astype(np.float32) / 255.
         # only load image at this time
         img = cv2.resize(img, (self.W, self.H), interpolation=cv2.INTER_AREA)
@@ -384,28 +367,25 @@ class NVSD(torch.utils.data.Dataset):
                                     self.intrinsics, self.c2w_mat[file_idx])
         depth, confidence = get_depth_value(self.depth_files[file_idx], 
             self.confidence_files[file_idx], self.W, self.H, self.max_depth)
+        
+        valid_depth = np.ones_like(depth)
+
+        valid_depth[depth > self.max_depth] = 0
+        valid_depth[confidence < self.confidence_level] = 0
 
         if(self.split == "train"):# or self.split == "val"):
 
-            # Hardcoding for water pump
-            depth[depth > self.max_depth] = 0
-            depth[confidence < self.confidence_level] = 0
-
-            img = img[depth != 0]
-            rays_d = rays_d[depth != 0]
-            depth = depth[depth != 0]
+            # img = img[valid_depth != 0]
+            # rays_d = rays_d[valid_depth != 0]
+            # depth = depth[valid_depth != 0]
 
             rnd_idx = np.random.choice(depth.shape[0], self.num_train_sample)
             img = img[rnd_idx]
             rays_d = rays_d[rnd_idx]
             depth = depth[rnd_idx]
+            valid_depth = valid_depth[rnd_idx]
             # print("Num pixels ", depth.shape, rays_o.shape, rays_d.shape, img.shape, idx )
-        elif(self.split == "val"):
-            depth[depth > self.max_depth] = 0
-            depth[confidence < self.confidence_level] = 0
 
-        # depth[depth > self.max_depth] = 0
-        # depth[confidence < self.confidence_level] = 0
 
         ret = OrderedDict([
             ('ray_o', rays_o),
@@ -414,19 +394,21 @@ class NVSD(torch.utils.data.Dataset):
             ('rgb', img),
             ('box_dim', self.box_dim),
             ('box_min_off', self.box_min_off),
-            ('file_idx', np.array([file_idx]))
+            ('file_idx', file_idx),
+            ('idx', idx),
+            ('valid_depth', valid_depth)
         ])
         # return torch tensors
         for k in ret:
-            if ret[k] is not None:
-                ret[k] = torch.from_numpy(ret[k])
+            if (ret[k] is not None) and (type(ret[k]) is not int):
+                ret[k] = torch.from_numpy(ret[k]).float()
         return ret
 
 
 class NVSDM(pl.LightningDataModule):
 
     def __init__(self, basedir, skip=1, resolution_level=1, confidence_level=1,
-        batch_size=1, num_workers=4, max_depth=4.0):
+        batch_size=1, num_workers=4, max_depth=4.0, num_train_sample=1000):
 
         super().__init__()
 
@@ -437,6 +419,7 @@ class NVSDM(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.max_depth = max_depth
+        self.num_train_sample = num_train_sample
 
     # When doing distributed training, Datamodules have two optional arguments for
     # granular control over download/prepare/splitting data:
@@ -452,7 +435,8 @@ class NVSDM(pl.LightningDataModule):
     def train_dataloader(self):
         return DataLoader(NVSD(self.basedir, self.skip, split="train",
             resolution_level = self.resolution_level, 
-            confidence_level = self.confidence_level, max_depth=self.max_depth), 
+            confidence_level = self.confidence_level, max_depth=self.max_depth,
+            num_train_sample=self.num_train_sample), 
         batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, pin_memory=True)
 
     def val_dataloader(self):
@@ -460,11 +444,11 @@ class NVSDM(pl.LightningDataModule):
             resolution_level = self.resolution_level, 
             confidence_level = self.confidence_level,
             max_depth=self.max_depth), 
-        batch_size=self.batch_size, num_workers=self.num_workers, pin_memory=True)
+        batch_size=1, num_workers=self.num_workers, pin_memory=True)
 
     def test_dataloader(self):
         return DataLoader(NVSD(self.basedir, self.skip, split="test",
             resolution_level = self.resolution_level, 
             confidence_level = self.confidence_level, max_depth=self.max_depth), 
-        batch_size=self.batch_size, num_workers=self.num_workers, pin_memory=True)
+        batch_size=1, num_workers=self.num_workers, pin_memory=True)
 

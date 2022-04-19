@@ -7,7 +7,7 @@ import numpy as np
 import pytorch_lightning as pl
 import json
 import volume_rendering as vr
-from torch_ema import ExponentialMovingAverage
+# from torch_ema import ExponentialMovingAverage
 from torchvision.utils import save_image
 from torchvision.transforms import ToPILImage
 from clib import (
@@ -16,6 +16,7 @@ from clib import (
 )
 
 import camera_pose as cpose
+import losses
 
 
 try:
@@ -29,30 +30,6 @@ except ImportError:
     print("============================================================")
     sys.exit()
 
-
-def get_rotation_matric(rotations):
-
-    cos_alpha = torch.cos(rotations[:, 0])
-    cos_beta = torch.cos(rotations[:, 1])
-    cos_gamma = torch.cos(rotations[:, 2])
-    sin_alpha = torch.sin(rotations[:, 0])
-    sin_beta = torch.sin(rotations[:, 1])
-    sin_gamma = torch.sin(rotations[:, 2])
-
-    col1 = torch.stack([
-        cos_alpha * cos_beta, sin_alpha * cos_beta, -sin_beta], dim=-1)
-    col2 = torch.stack(
-        [cos_alpha * sin_beta * sin_gamma - sin_alpha * cos_gamma,
-         sin_alpha * sin_beta * sin_gamma + cos_alpha * cos_gamma,
-         cos_beta * sin_gamma], dim=-1)
-    col3 = torch.stack(
-        [cos_alpha * sin_beta * cos_gamma + sin_alpha * sin_gamma,
-         sin_alpha * sin_beta * cos_gamma - cos_alpha * sin_gamma,
-         cos_beta * cos_gamma], dim=-1)
-
-    return torch.stack([col1, col2, col3], dim=-1)
-
-
 def dump_image(rgb, name, wth=int(1920/4), hgt=int(1440/4)):
     rgb = rgb.detach()
     rgb = rgb.reshape(hgt, wth, -1)
@@ -65,13 +42,12 @@ def dump_image(rgb, name, wth=int(1920/4), hgt=int(1440/4)):
 class NVSEnc(pl.LightningModule):
 
     def __init__(self, config_path, num_frames, voxel_size, voxel_base_xyz,
-        box_min_off, box_dim, max_hits):
+        box_min_off, box_dim, max_hits, resolution_level,
+        sc_factor, truncation, max_depth):
         super().__init__()
 
         with open(config_path) as config_file:
             config = json.load(config_file)
-
-        frm_emb_dim = 16
 
         self.n_den_inp = 3 # num channels of input density
         self.n_den_out = 16 # density network output channels
@@ -89,69 +65,78 @@ class NVSEnc(pl.LightningModule):
         print(self.rgb_net)
         # print(self.rgb_enc.n_output_dims, )
 
-
-        self.frm_emb = nn.Embedding(num_frames, frm_emb_dim)
-        self.pose_cor_emb = nn.Embedding(num_frames, 6)
-        self.pose_cor_emb.weight = torch.nn.Parameter(torch.zeros(num_frames, 6))
+        # frm_emb_dim = 16
+        # self.frm_emb = nn.Embedding(num_frames, frm_emb_dim)
+        pose_emb_size = 6
+        self.pose_cor_emb = nn.Embedding(num_frames, pose_emb_size)
+        self.pose_cor_emb.weight = torch.nn.Parameter(torch.zeros(num_frames, pose_emb_size))
 
         self.config = config
         # self.optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
         self.params = list(self.den_net.parameters()) \
             + list(self.rgb_net.parameters()) \
-            + list(self.pose_cor_emb.parameters()) \
+            # + list(self.pose_cor_emb.parameters()) \
             # + list(self.frm_emb.parameters()) \
         
+        # self.params = list(self.rgb_net.parameters()) \
         # self.params = list(self.pose_cor_emb.parameters())
         
-        # self.params = list(self.pose_cor_emb.parameters())
-
-        self.ema = ExponentialMovingAverage(self.params, decay=0.995)
-        self.ce_loss = nn.CrossEntropyLoss()
+        # self.ema = ExponentialMovingAverage(self.params, decay=0.995)
+        # self.ce_loss = nn.CrossEntropyLoss()
         self.epoch_num = 0
 
         # store the non-zero voxels
-        self.register_buffer('box_min_off', box_min_off)
-        self.register_buffer('box_dim', box_dim)
+        self.register_buffer('box_min_off', box_min_off.float().to(self.device))
+        self.register_buffer('box_dim', box_dim.float().to(self.device))
         self.voxel_size = voxel_size
         self.max_hits = max_hits
-        voxel_base_xyz = torch.t(voxel_base_xyz)
-        voxel_base_xyz = voxel_base_xyz*self.voxel_size \
-            + self.box_min_off + self.voxel_size*0.5
+        voxel_base_xyz = voxel_base_xyz*self.voxel_size + self.box_min_off + self.voxel_size*0.5
 
-        self.register_buffer('voxel_base_xyz', voxel_base_xyz)
-        # self.voxel_base_xyz = voxel_base_xyz.type(torch.DoubleTensor)
+        self.register_buffer('voxel_base_xyz', voxel_base_xyz.float().unsqueeze(0).to(self.device))
+        self.resolution_level = resolution_level
+        self.sc_factor = sc_factor
+        self.truncation = truncation
+        self.batch_idx = -1
 
-        # steps = (box_dim / voxel_size).floor().long() + 1
+        num_pts_per_ray = 128
+        self.min_z = 0.2
+        self.max_z = max_depth
+        sample = torch.linspace(self.min_z, self.max_z, num_pts_per_ray).unsqueeze(0).unsqueeze(0).to(self.device) 
+        self.register_buffer('sample', sample)
 
 
-
+        # print("Voxel shape ", voxel_base_xyz.shape)
 
     # def on_before_zero_grad(self, *args, **kwargs):
     #     self.ema.update(self.params)
 
-    def get_net_op(self, points, dir_pts, frm_idx):
-
+    def get_net_op(self, points, dir_pts): #, frm_idx):
 
         num_batch, img_sam, ray_sam, _ = points.shape
         points = points.reshape(-1, 3)
-        # print(points.shape, dir_pts.shape)
+        # print("Input network ", points.shape, dir_pts.shape)
         if(torch.min(points) < 0.0 or torch.max(points) > 1.0):
             print("Sample offset min and max ", torch.min(points, dim=0),
                 torch.max(points, dim=0))
 
+        # points = torch.zeros_like(points).to(points.device)
         den_out = self.den_net(points)
         # print("Density min and max ", torch.min(den_out, dim=0),
         #     torch.max(den_out, dim=0))
 
+        dir_norm = torch.norm(dir_pts, dim=-1)
+        dir_pts = dir_pts/dir_norm.unsqueeze(-1)
+
         dir_inp = dir_pts.unsqueeze(-2).repeat(1,1,ray_sam,1)
         # print(dir_inp.shape)
         dir_inp = dir_inp.reshape(-1, 3)
+        # dir_inp = torch.zeros_like(dir_inp).to(dir_inp.device)
         dir_enc = self.rgb_enc(dir_inp)
 
         # print("Input shape ",  den_out.shape, frm_idx)
 
-        emb_idx = frm_idx*torch.ones(den_out.shape[0]).long().to(points.device)
-        frm_emb = self.frm_emb(emb_idx)
+        # emb_idx = frm_idx*torch.ones(den_out.shape[0]).long().to(points.device)
+        # frm_emb = self.frm_emb(emb_idx)
 
         # rgb_inp = torch.cat((den_out, dir_enc, frm_emb), -1)
         rgb_inp = torch.cat((den_out, dir_enc), -1)
@@ -163,34 +148,31 @@ class NVSEnc(pl.LightningModule):
 
         return den_out, rgb_out
 
-    def sample_points(self, ray_o, ray_d, depth, rgb, box_min_off, box_dim):
+    def sample_points(self, ray_o, ray_d, depth, rgb):
 
-        num_pts_per_ray = 256 #512
-        min_z = 0.2
-        max_z = 1.2
-        sample = torch.linspace(min_z, max_z, num_pts_per_ray).to(ray_d.device) 
+        dpth_off = depth.unsqueeze(-1) * self.sample
 
-        dpth_off = depth.unsqueeze(-1) * sample.unsqueeze(0).unsqueeze(0)
-
-        pts = ray_o + dpth_off.unsqueeze(-1) * ray_d.unsqueeze(-2)
+        pts = ray_o.unsqueeze(-2).unsqueeze(-2) + dpth_off.unsqueeze(-1) * ray_d.unsqueeze(-2)
         # pre-process to restrict data within a box of 0-1 values
-        pts = (pts - box_min_off + 0.1*box_dim)/(1.4*box_dim)
-        
-
-        return pts, dpth_off
-
-    def sample_vox_occ(self, ray_o, ray_d, depth):
-        voxel_base_xyz = self.voxel_base_xyz.to(ray_o.device)
-        self.box_min_off = self.box_min_off.to(ray_o.device)
-        self.box_dim = self.box_dim.to(ray_o.device)
-        # self.voxel_size = self.voxel_size.to(ray_o.device)
-        # steps = (self.box_dim / self.voxel_size).floor().long() + 1
-
+        pts = (pts - self.box_min_off + 2.1*self.min_z*self.box_dim)/((1+4.2*self.min_z)*self.box_dim)
+        valid_rays = depth > 0.01
 
         # print("Intersection input ", ray_o.shape, ray_d.shape,
+        #     pts.shape, dpth_off.shape)
+
+        return pts, dpth_off, valid_rays
+
+    def sample_vox_occ(self, ray_o, ray_d, depth):
+        # voxel_base_xyz = self.voxel_base_xyz.to(ray_o.device)
+        # self.box_min_off = self.box_min_off.to(ray_o.device)
+        # self.box_dim = self.box_dim.to(ray_o.device)
+        # self.voxel_size = self.voxel_size.to(ray_o.device)
+        # steps = (self.box_dim / self.voxel_size).floor().long() + 1
+        # print("Intersection input ", ray_o.shape, ray_d.shape,
         #     self.voxel_base_xyz.shape)
+
         pts_idx, min_depth, max_depth = aabb_ray_intersect(
-                self.voxel_size, self.max_hits, voxel_base_xyz.unsqueeze(0), 
+                self.voxel_size, self.max_hits, self.voxel_base_xyz, 
                 ray_o.unsqueeze(1).repeat(1, ray_d.shape[1], 1), ray_d)
 
         # print("Intersection output ", pts_idx.shape, min_depth.shape)
@@ -198,87 +180,118 @@ class NVSEnc(pl.LightningModule):
         # min_depth[min_depth<0.001] = 1000.0
         min_depth_val, _ = torch.min(min_depth, dim=-1)
         max_depth_val, _ = torch.max(max_depth, dim=-1)
-
-        valid_rays = max_depth_val >= 0.0
-        invalid_rays = max_depth_val <= 0.0
-        max_depth_val[invalid_rays] = 2.5
-        min_depth_val[invalid_rays] = 0.6
-
-        # min_depth_val = min_depth_val.type(torch.DoubleTensor).to(ray_o.device)
-        # max_depth_val = max_depth_val.type(torch.DoubleTensor).to(ray_o.device)
-        # print(max_depth_val[0, :10], min_depth_val[0, :10],
-        #     depth[0, :10],
-        #     min_depth_val.shape,  max_depth_val.shape)
-        # dpth_vox = ((ray_o + depth.unsqueeze(-1) * ray_d - self.box_min_off)/self.voxel_size).floor().long()
-        # print(dpth_vox[0,:10,], steps)
+        # print("Intersection details ", )
 
         # invalid_depth = torch.logical_or(min_depth_val > depth, max_depth_val < depth)
-        # print("Invalid depth ", min_depth_val[invalid_depth], depth[invalid_depth], 
-        #     max_depth_val[invalid_depth], torch.sum(invalid_depth), invalid_depth.shape)
-        # print("Invalid depth1 ", min_depth_val, depth, max_depth_val)
 
-        num_pts_per_ray = 256 #512
-        sample = torch.linspace(0, 1.0, num_pts_per_ray).to(ray_o.device)
+        # if(torch.sum(invalid_depth) > 0):
+        #     print("Num invalid depths ", torch.sum(invalid_depth), invalid_depth.shape)
+
+
+        invalid_rays = min_depth_val >= 100
+        valid_rays = min_depth_val < 100
+        max_depth_val[invalid_rays] = self.max_z
+        min_depth_val[invalid_rays] = 0.6
+
+        # print("Min and max depth ", torch.min(min_depth_val[valid_rays]),
+        #     torch.max(max_depth_val[valid_rays]))
+        # print(min_depth_val[valid_rays][:10])
+
+        num_pts_per_ray = 128 #256 #512
+        sample = torch.linspace(0, 1.0, num_pts_per_ray).float().to(ray_o.device)
         sample = sample.unsqueeze(0).unsqueeze(0)
 
         dpth_off = min_depth_val.unsqueeze(-1)*(1 - sample) + \
             max_depth_val.unsqueeze(-1)*sample
 
-        pts = ray_o + dpth_off.unsqueeze(-1) * ray_d.unsqueeze(-2)
+        # print("Intersection input ", ray_o.shape, ray_d.shape,
+        #     self.voxel_base_xyz.shape, dpth_off.shape)
+        pts = ray_o.unsqueeze(-2).unsqueeze(-2) + dpth_off.unsqueeze(-1) * ray_d.unsqueeze(-2)
         # pre-process to restrict data within a box of 0-1 values
-        pts = (pts - self.box_min_off + 0.0*self.box_dim)/(1.2*self.box_dim)
+        pts = (pts - self.box_min_off + 0.5*self.box_dim)/(2.0*self.box_dim)
+        # pts = (pts - self.box_min_off + 0.5*self.box_dim)/(2.0*self.box_dim)
         
-        # print("Variable type ", pts.dtype, dpth_off.dtype,
-        #     min_depth_val.dtype, max_depth_val.dtype, sample.dtype)
+        # print("Variable type ", pts.type(), dpth_off.type(),
+        #     min_depth_val.type(), max_depth_val.type(), sample.type())
 
+        return pts, dpth_off, valid_rays
 
-        # print("Valid rays shape ", valid_rays.shape, max_depth_val.shape)
+    def calculate_loss(self, rgb_map, depth_map, tgt_rgb, tgt_dpth, z_vals, sdf):
+        # rgb_loss = F.mse_loss(rgb_map, tgt_rgb)
+        # depth_loss = F.mse_loss(depth_map, tgt_dpth)
+        # # alpha_loss = F.mse_loss(alpha, \
+        # #     depth_pred.unsqueeze(0).unsqueeze(0).repeat(1,img_sam,1))
+        # # alpha_loss = self.ce_loss(alpha, 
+        # #     depth_pred.unsqueeze(0).unsqueeze(0).repeat(1,img_sam,1))
+        # loss = 0.0*depth_loss + rgb_loss# + alpha_loss
 
-        return pts.float(), dpth_off.float(), valid_rays
+        # print("Shapes ", depth_map.shape, tgt_dpth.shape, z_vals.shape, sdf.shape, rgb_map.shape)
 
-    def calculate_loss(self, rgb_map, depth_map, tgt_rgb, tgt_dpth):
-        rgb_loss = F.mse_loss(rgb_map, tgt_rgb)
-        depth_loss = F.mse_loss(depth_map, tgt_dpth)
-        # alpha_loss = F.mse_loss(alpha, \
-        #     depth_pred.unsqueeze(0).unsqueeze(0).repeat(1,img_sam,1))
-        # alpha_loss = self.ce_loss(alpha, 
-        #     depth_pred.unsqueeze(0).unsqueeze(0).repeat(1,img_sam,1))
-        loss = 0.0*depth_loss + rgb_loss# + alpha_loss
+        rgb_weight = 10.0
+        depth_weight = 0.0
+        fs_weight = 1.0
+        trunc_weight = 60.0
+        trans_weight = 10.0
+
+        img_loss = losses.compute_loss(rgb_map, tgt_rgb)
+        loss = rgb_weight * img_loss
+        # Depth loss
+        depth_loss = losses.get_depth_loss(depth_map, tgt_dpth)
+        loss += depth_weight * depth_loss
+
+        # Loss for free space / truncation samples
+        truncation = self.truncation * self.sc_factor
+        tgt_dpth = tgt_dpth.unsqueeze(-1).expand(-1, z_vals.shape[-1])
+        fs_loss, sdf_loss = losses.get_sdf_loss(z_vals, tgt_dpth, sdf, truncation)
+        loss += fs_weight * fs_loss + trunc_weight * sdf_loss
+
+        # if feature_array is not None:
+        #     reg_features = 0.1 * tf.reduce_mean(tf.square(feature_array.data))
+        #     loss += reg_features
+
+        # translation = self.pose_cor_emb.weight[:,3:]
+        # reg_translation = torch.mean(torch.square(translation))
+        # loss += trans_weight * reg_translation
+        if(self.batch_idx % 100 == 0):
+            print("Losses ", fs_loss, sdf_loss, depth_loss, img_loss, loss)
+
         return loss
 
-    def process_batch(self, ray_o, ray_d, depth, rgb, box_min_off, box_dim, frm_idx):
+    def process_batch(self, ray_o, ray_d, depth, rgb, idx_lst, valid_depth):
 
-        # emb_idx = frm_idx*torch.ones(ray_d.shape[1]).long().to(ray_d.device)
-        emb_idx = torch.tensor([frm_idx]).to(ray_d.device)
-        pose_cor_emb = self.pose_cor_emb(emb_idx)
-
-        # # print("Embedding ", pose_cor_emb)
-
-        # rot_mat = get_rotation_matric(pose_cor_emb[:, :3])
-
-        # # print("Rotation matrix refinement ", rot_mat.shape, ray_d.shape,
-        # #     pose_cor_emb.shape, rot_mat.dtype, ray_d.dtype)
-        # ray_d[0,:,:] = torch.matmul(ray_d[0,:,:].float(), rot_mat)
-        # ray_o = ray_o + pose_cor_emb[:, 3:]
-
-        c2w = cpose.Exp(pose_cor_emb[0, :3])
-        ray_d = torch.matmul(c2w[:3, :3].view(1, 1, 3, 3), ray_d.unsqueeze(3).float()).squeeze(3)  # (1, 1, 3, 3) * (H, W, 3, 1) -> (H, W, 3)
-        ray_o = ray_o + pose_cor_emb[0, 3:]  # the translation vector (3, )
-
-
-        # print("Rotation matrix refinement ", c2w.shape, ray_d.shape, ray_o.shape)
-
-
-        # pts, dpth_off = self.sample_points(ray_o, ray_d, depth, rgb, box_min_off, box_dim)
+        # pts, dpth_off, valid_rays = self.sample_points(ray_o, ray_d, depth, rgb)
         pts, dpth_off, valid_rays = self.sample_vox_occ(ray_o, ray_d, depth)
 
-        den_out, rgb_out = self.get_net_op(pts, ray_d, frm_idx)
+        # emb_idx = frm_idx*torch.ones(ray_d.shape[1]).long().to(ray_d.device)
+        # emb_idx = torch.tensor([frm_idx]).to(ray_d.device)
+        # emb_idx = idx_lst.to(ray_d.device)
+        # pose_cor_emb = self.pose_cor_emb(emb_idx)
+        # c2w = cpose.Exp(pose_cor_emb[:, :3])
+        # print("Embedding ", pose_cor_emb.shape, emb_idx.shape, c2w.shape, ray_d.shape, ray_o.shape,
+        #     pts.shape)
 
-        rgb_map, disp_map, acc_map, weights, depth_map, alpha = \
+        # Add rotation and offset embedding
+        # print("matrix mul ")
+        # print(c2w[:2, :3, :3])
+        # print(pose_cor_emb[:2, :])
+        # print(pts[:2, :5, 64])
+        # print(ray_d[:2, :5])
+        # print("Type ", ray_o.type(), ray_d.type(), depth.type(), c2w.type(), pts.type())
+        # pts = torch.matmul(c2w[:, :3, :3].view(-1, 1, 1, 3, 3), pts.unsqueeze(-1)).squeeze(-1) + pose_cor_emb[:, 3:].view(-1, 1, 1, 3)
+        # ray_d = torch.matmul(c2w[:, :3, :3].view(-1, 1, 3, 3), ray_d.unsqueeze(3)).squeeze(3) 
+        # print(pts[:2, :5, 64])
+        # print(ray_d[:2, :5])
+
+        den_out, rgb_out = self.get_net_op(pts, ray_d)
+
+        rgb_map, disp_map, acc_map, weights, depth_map = \
             vr.volume_render_radiance_field( rgb_out, den_out[..., 1],
-                dpth_off, radiance_field_noise_std=1.0, white_background=False)
+                dpth_off, radiance_field_noise_std=1.0, white_background=False,
+                sc_factor=self.sc_factor, truncation=self.truncation)
 
-        loss = self.calculate_loss(rgb_map, depth_map, rgb, depth)
+
+        loss = self.calculate_loss(rgb_map, depth_map[valid_depth!=0], rgb, depth[valid_depth!=0], 
+            dpth_off[valid_depth!=0], den_out[..., 1][valid_depth!=0])
         return loss, rgb_map, depth_map, valid_rays
 
     def training_step(self, batch, batch_idx):
@@ -288,7 +301,10 @@ class NVSEnc(pl.LightningModule):
         ray_o = batch['ray_o']
         box_min_off = batch['box_min_off']
         box_dim = batch['box_dim']
-        loss, _, _, _ = self.process_batch(ray_o, ray_d, depth, rgb, box_min_off, box_dim, batch_idx)
+        idx_lst = batch['idx']
+        valid_depth = batch['valid_depth']
+        loss, _, _, _ = self.process_batch(ray_o, ray_d, depth, rgb, idx_lst, valid_depth)
+        self.batch_idx = batch_idx
 
         tqdm_dict = {'train_loss': loss}
         outputs = {
@@ -315,32 +331,32 @@ class NVSEnc(pl.LightningModule):
         ray_o = batch['ray_o']
         box_min_off = batch['box_min_off']
         box_dim = batch['box_dim']
+        idx_lst = batch['idx']
+        valid_depth_i = batch['valid_depth']
         pred_rgb = torch.zeros(rgb_i.shape[1], rgb_i.shape[2]).to(rgb_i.device)
         pred_depth = torch.zeros(rgb_i.shape[1]).to(rgb_i.device)
-
-
-
-        # rgb_i = rgb_i[depth != 0]
-        # ray_d_i = ray_d_i[depth != 0]
-        # depth_i = depth_i[depth != 0]
 
         # Calculate masked loss
         # Check with a known dataset like Lego?
 
         total_loss = 0.0
-        chunk_size=10240
+        chunk_size = 5000 #10240
         with torch.no_grad():
             for idx in range(0, ray_d_i.shape[1], chunk_size):
                 ray_d = ray_d_i[:, idx : idx+chunk_size, :]
                 depth = depth_i[:, idx : idx+chunk_size]
                 rgb = rgb_i[:, idx : idx+chunk_size, :]
+                valid_depth = valid_depth_i[:, idx : idx+chunk_size]
+                
 
                 # print("Num sample ", ray_d.shape, batch['ray_d'].shape)            
                 loss, rgb_map, depth_map, valid_rays = \
-                    self.process_batch(ray_o, ray_d, depth, rgb, box_min_off, box_dim, batch_idx)
+                    self.process_batch(ray_o, ray_d, depth, rgb, idx_lst, valid_depth)
 
                 pred_rgb[idx : idx+chunk_size, :][valid_rays[0]] = rgb_map[0,:,:][valid_rays[0]]
                 pred_depth[idx : idx+chunk_size][valid_rays[0]] = depth_map[0,:][valid_rays[0]]
+                # pred_rgb[idx : idx+chunk_size, :] = rgb_map[0,:,:]
+                # pred_depth[idx : idx+chunk_size] = depth_map[0,:]
 
                 # total_loss += ray_d.shape[1]*loss
                 # torch.cuda.empty_cache()
@@ -348,24 +364,41 @@ class NVSEnc(pl.LightningModule):
 
             # depth_i = depth_i.detach().cpu()
             # rgb_i = rgb_i.detach().cpu()
-            tru_dep = depth_i[0]
+            tru_dep = valid_depth_i[0]
 
-            total_loss = self.calculate_loss(pred_rgb[tru_dep != 0], 
-                pred_depth[tru_dep != 0], rgb_i[0][tru_dep != 0], depth_i[0][tru_dep != 0])
+            # total_loss = self.calculate_loss(pred_rgb[tru_dep != 0], 
+            #     pred_depth[tru_dep != 0], rgb_i[0][tru_dep != 0], depth_i[0][tru_dep != 0])
+            total_loss = F.mse_loss(pred_rgb[tru_dep != 0], rgb_i[0][tru_dep != 0])
 
-        if(self.epoch_num % 25 == 0 and batch_idx % 30 == 0):
-            dump_image(pred_rgb, './out_images/rgb_' + \
-                str(self.epoch_num) + '_' + str(batch_idx)   + '.png')
 
-            depth_diff = 1.0*torch.ones(rgb_i.shape[1], 3).to(rgb_i.device)
-            diff_img = torch.abs(pred_depth - depth_i[0,:]) / 4.0
-            depth_diff[:, 0] = diff_img
-            depth_diff[:, 1] = diff_img
-            depth_diff[:, 2] = diff_img
-            # depth_diff[:, 1] = pred_depth / 4.0
-            # depth_diff[:, 2] = depth_i[0,:] / 4.0
-            dump_image(depth_diff, './out_images/depth_' + \
-                str(self.epoch_num) + '_' + str(batch_idx)   + '.png')
+        depth_diff = 1.0*torch.ones(rgb_i.shape[1], 3).to(rgb_i.device)
+        diff_img = torch.abs(pred_depth - depth_i[0,:]) / 4.0
+        depth_diff[:, 0] = diff_img
+        depth_diff[:, 1] = diff_img
+        depth_diff[:, 2] = diff_img
+
+        pred_dpth_img = 1.0*torch.ones(rgb_i.shape[1], 3).to(rgb_i.device)
+        pred_dpth_img[:, 0] = pred_depth / 4.0
+        pred_dpth_img[:, 1] = pred_depth / 4.0
+        pred_dpth_img[:, 2] = pred_depth / 4.0
+
+        org_dpth_img = 1.0*torch.ones(rgb_i.shape[1], 3).to(rgb_i.device)
+        org_dpth_img[:, 0] = depth_i[0,:] / 4.0
+        org_dpth_img[:, 1] = depth_i[0,:] / 4.0
+        org_dpth_img[:, 2] = depth_i[0,:] / 4.0
+
+        # if(self.epoch_num % 25 == 0 and batch_idx % 30 == 0):
+        dump_image(pred_rgb, './out_images/rgb_' + \
+            str(batch_idx)   + '.png',
+            wth=int(1920/self.resolution_level), hgt=int(1440/self.resolution_level))
+
+        dump_image(pred_dpth_img, './out_images/depth_' + \
+            str(batch_idx)   + '.png',
+            wth=int(1920/self.resolution_level), hgt=int(1440/self.resolution_level))
+        
+        # dump_image(org_dpth_img, './out_images/org_depth_' + \
+        #     str(self.epoch_num) + '_' + str(batch_idx)   + '.png',
+        #     wth=int(1920/self.resolution_level), hgt=int(1440/self.resolution_level))
 
         tqdm_dict = {'val_loss': total_loss}
         outputs = {
@@ -373,6 +406,8 @@ class NVSEnc(pl.LightningModule):
             'progress_bar': tqdm_dict,
             'log': tqdm_dict,
             'val_loss' : total_loss,
+            'pred_rgb' : pred_rgb,
+            'depth' : pred_dpth_img,
         }
 
         self.log("val_loss", total_loss)
@@ -400,14 +435,10 @@ class NVSEnc(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        # params = list(self.den_net.parameters()) \
-        #         + list(self.rgb_net.parameters()) \
-            # + list(self.frm_emb.parameters()) \
-            # + list(self.pose_cor_emb.parameters()) \
-        # optimizer = torch.optim.Adam(self.params, lr=0.001, eps=1e-15, 
-        #     betas=(0.9, 0.995), weight_decay=1e-6)
-        optimizer = torch.optim.Adam(self.params, lr=0.0001, eps=1e-15, 
+        optimizer = torch.optim.Adam(self.params, lr=0.001, eps=1e-15, 
             betas=(0.9, 0.995), weight_decay=1e-6)
+        # optimizer = torch.optim.Adam(self.params, lr=0.0001, eps=1e-15, 
+        #     betas=(0.9, 0.995), weight_decay=1e-6)
         # optimizer = torch.optim.Adam(self.parameters(), lr=0.01)
         return optimizer
 

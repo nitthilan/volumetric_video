@@ -9,6 +9,8 @@ import argparse
 from scipy.spatial.transform import Rotation
 from PIL import Image
 from numpy import asarray
+import cv2
+
 
 
 def draw_registration_result(source, target, transformation):
@@ -33,7 +35,8 @@ def read_lines(flags):
     with open(os.path.join(flags.dataset, 'unif_sam_img.txt'), 'r') as file:
         file_lst = file.read().replace('\n', ' ').split(' ')
 
-    return file_lst
+    return file_lst[:-1:2]
+    # return file_lst#[:40]
 
 
 
@@ -76,9 +79,11 @@ def get_file_lst(flags):
 def get_point_cloud_frm_rgb(basefolder, filepath, intrinsic):
     depth_path = os.path.join(basefolder, 'depth', filepath[:-4]+".npy")
     color_path = os.path.join(basefolder, 'rgb', filepath[:-4]+".jpg")
+    confidence_path = os.path.join(basefolder, 'confidence', filepath[:-4]+".png")
     # color_raw = o3d.io.read_image(color_path)
     width = 256
     height = 192
+    depth_thresh = 2.0
     # color_raw = asarray(Image.open(color_path).convert('L').resize((width,height)))
     color_raw = asarray(Image.open(color_path).resize((width,height)))
     color_raw = o3d.geometry.Image(color_raw)
@@ -86,10 +91,14 @@ def get_point_cloud_frm_rgb(basefolder, filepath, intrinsic):
 
     depth_raw = np.load(depth_path)
     # out[out < 10] = 0
+
+    confidence = cv2.imread(confidence_path)[:, :, 0]
+
+    depth_raw[confidence <= 1] = depth_thresh + 1
     depth_raw = o3d.geometry.Image((depth_raw).astype(np.float32))
 
     source_rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
-        color_raw, depth_raw, depth_trunc=4.0, convert_rgb_to_intensity=False)
+        color_raw, depth_raw, depth_trunc=depth_thresh, convert_rgb_to_intensity=False)
 
     # o3d.visualization.draw_geometries([source_rgbd_image])
 
@@ -162,7 +171,7 @@ def rgbd_pcd_pose_est(source, target, src_odo):
             o3d.pipelines.registration.ICPConvergenceCriteria(relative_fitness=1e-6,
                                                             relative_rmse=1e-6,
                                                             max_iteration=iter))
-    print("Colored ", result_icp)
+    print("Colored ", result_icp, np.asarray(source.points).shape, np.asarray(target.points).shape)
     print(result_icp.transformation)
     # draw_registration_result(source, target, result_icp.transformation)
     # print("3. Colored point cloud registration")
@@ -236,6 +245,7 @@ def registering_point_clouds(flags):
         source_pcd.transform(transformation)
         poses_lst.append(transformation)
         # draw_registration_result(source_pcd, target_pcd, transformation)
+        o3d.visualization.draw_geometries([source_pcd, target_pcd])
 
         # target, reg = pose_difference(source_pcd, target_pcd, src_odo)
         # draw_registration_result(source_pcd, target_pcd, reg.transformation)

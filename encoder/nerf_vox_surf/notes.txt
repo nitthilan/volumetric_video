@@ -1,34 +1,61 @@
-CUDA_VISIBLE_DEVICES=1 python training_loop.py -d /nitthilan/data/iphone12_pro/harsh_ipadpro12/water_pump/ -cfg ./tcn_config.json 
+CUDA_VISIBLE_DEVICES=1 python training_loop.py -d /nitthilan/data/iphone12_pro/harsh_ipadpro12/chair_on_table/ -cfg ./tcn_config.json 
+podman run -it --rm --ipc=host -v /local/data/nitthilan/:/nitthilan/ --name nitt_pytorch docker.io/pytorch/pytorch:1.7.1-cuda11.0-cudnn8-devel
+podman exec -it nitt_pytorch /bin/bash
+pip install pytorch-lightning==1.5.0
+python setup.py build_ext --inplace
+pip install git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
+pip install opencv-python-headless
+pip install imageio
+pip install scipy
+apt update 
+apt install tmux git
 
 
+Use SDF instead of density
 
-occupancy grid
-validation data
-hdr rgb training
-
-
-https://github.com/google/mipnerf - multi-resolution nerf for high quality
-https://github.com/fadel/pytorch_ema - exponential decay
-
-
-Optimization:
-3d occupancy grid ray marching pytorch - nsvf or https://github.com/acschaefer/ray_tracing
-https://github.com/rmrschub/zCurve
+Camera Pose refinement: and deformation
+https://github.com/ActiveVisionLab/nerfmm/blob/main/utils/lie_group_helper.py - https://arxiv.org/pdf/2102.07064.pdf
+https://arxiv.org/pdf/2012.05877.pdf - iNeRF: Inverting Neural Radiance Fields for Pose Estimation
 
 Train using latent variable for image lighting variation
-Pose and camera refinement
+https://arxiv.org/pdf/1707.05776.pdf - Optimizing the Latent Space of Generative Networks
 
+voxel optimization for occupancy
+
+Reduced picture for training
 
 Depth guidance:
 neural radiance fields using RGBD - 
+Depth-supervised NeRF: Fewer Views and Faster Training for Free - https://arxiv.org/pdf/2107.02791.pdf
 TermiNerf - https://arxiv.org/pdf/2111.03643.pdf
+DoNerf - https://depthoraclenerf.github.io/
+
+
+
+Block-NeRF: Scalable Large Scene Neural View Synthesis - https://arxiv.org/pdf/2202.05263.pdf
 
 Training for HDR instead of LDR:
 https://arxiv.org/pdf/2111.13679.pdf - 
 
+https://arxiv.org/pdf/2106.10689.pdf - 
 
 
+HumanNeRF: Free-viewpoint Rendering of Moving People from Monocular Video - https://arxiv.org/pdf/2201.04127.pdf
+A-NeRF: Articulated Neural Radiance Fields for Learning Human Shape, Appearance, and Pose - https://arxiv.org/pdf/2102.06199.pdf
 https://arxiv.org/pdf/2012.12247.pdf - Non-Rigid Neural Radiance Fields: Reconstruction and Novel View Synthesis of a Dynamic Scene From Monocular Video
+Animatable Neural Implicit Surfaces for Creating Avatars from Videos - https://arxiv.org/pdf/2203.08133.pdf
+https://arxiv.org/pdf/2203.15798.pdf - DRaCoN – Differentiable Rasterization Conditioned Neural Radiance Fields for Articulated Avatars
+
+Particle based
+NeuroFluid: Fluid Dynamics Grounding with Particle-Driven Neural Radiance Fields - https://arxiv.org/pdf/2203.01762.pdf
+Simulator: https://animation.rwth-aachen.de/media/papers/2015-SCA-DFSPH.pdf
+https://www.youtube.com/watch?v=b_WJ-HwalwU&ab_channel=ACMSIGGRAPH - SIGGRAPH University 2019 Course - An Introduction to Physics-Based Animation
+
+Pets:
+Artemis: Articulated Neural Pets with Appearance and Motion Synthesis - https://arxiv.org/pdf/2202.05628.pdf
+BANMo: Building Animatable 3D Neural Models from Many Casual Videos - https://arxiv.org/pdf/2112.12761.pdf
+
+
 
 Others:
 Neural Geometric Level of Detail: Real-time Rendering with Implicit 3D Shapes.
@@ -45,3 +72,29 @@ While training for pose sample data randomly from all directions to learn pose e
 Use SDF instead of NERF??
 PSNR rougly 27
 
+
+deepsfm: Structure-from-Motion using Dense CNN Features with Keypoint Relocalization
+Deep Two-View Structure-from-Motion Revisited
+DEEPV2D: VIDEO TO DEPTH WITH DIFFERENTIABLE STRUCTURE FROM MOTION
+DeepSFM: Structure From Motion Via Deep Bundle Adjustment
+
+https://github.com/google/mipnerf - multi-resolution nerf for high quality
+https://github.com/fadel/pytorch_ema - exponential decay
+
+
+Optimization:
+3d occupancy grid ray marching pytorch - nsvf or https://github.com/acschaefer/ray_tracing
+https://github.com/rmrschub/zCurve
+
+SPIN installation:
+Docker installation:
+podman run -it --rm --ipc=host -v /local/data/nitthilan/:/nitthilan/ --name nitt_spin chaneyk/spin
+- https://github.com/nkolot/SPIN/issues/13
+    - Install the original SPIN
+    - cd /nitthilan/source_code/volumetric_video_reference/SPIN/
+- Change running device to cpu 
+    - torch.device('cpu') #torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+- Neutral SMPL version 1.0.0. It is available in SMPLify
+    - https://smplify.is.tue.mpg.de/download.php
+    - https://github.com/nkolot/SPIN/issues/3
+- Replace 

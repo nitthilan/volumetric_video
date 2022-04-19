@@ -1,0 +1,7 @@
+
+Point cloud mesh reconstruction: https://hhoppe.com/poissonrecon.pdf
+https://doc.cgal.org/latest/Poisson_surface_reconstruction_3/index.html
+http://www.open3d.org/docs/latest/tutorial/Advanced/surface_reconstruction.html
+https://hhoppe.com/poissonrecon.pdf
+
+marching cubes vs dual contouring - https://graphics.stanford.edu/~mdfisher/MarchingCubes.html

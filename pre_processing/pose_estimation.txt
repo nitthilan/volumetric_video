@@ -1,0 +1,10 @@
+camera pose refinement COLMAP
+https://www.diva-portal.org/smash/get/diva2:1597743/FULLTEXT01.pdf
+https://colmap.github.io/faq.html
+https://www.cv-foundation.org/openaccess/content_cvpr_2015/papers/Choi_Robust_Reconstruction_of_2015_CVPR_paper.pdf
+
+https://paperswithcode.com/task/point-cloud-registration
+http://stanford.edu/~rqi/pointnet2/
+http://stanford.edu/~rqi/pointnet/
+
+https://arxiv.org/pdf/2201.08845.pdf - PointNerf

@@ -62,10 +62,10 @@ std::tuple< at::Tensor, at::Tensor, at::Tensor > aabb_intersect(at::Tensor ray_s
       torch::zeros({ray_start.size(0), ray_start.size(1), n_max},
                     at::device(ray_start.device()).dtype(at::ScalarType::Int));
   at::Tensor min_depth =
-      torch::zeros({ray_start.size(0), ray_start.size(1), n_max},
+      100000.0*torch::ones({ray_start.size(0), ray_start.size(1), n_max},
                     at::device(ray_start.device()).dtype(at::ScalarType::Float));
   at::Tensor max_depth =
-      torch::zeros({ray_start.size(0), ray_start.size(1), n_max},
+      -1.0*torch::ones({ray_start.size(0), ray_start.size(1), n_max},
                     at::device(ray_start.device()).dtype(at::ScalarType::Float));
   aabb_intersect_point_kernel_wrapper(points.size(0), points.size(1), ray_start.size(1),
                                       voxelsize, n_max,
